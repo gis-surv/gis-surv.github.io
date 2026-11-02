@@ -533,6 +533,7 @@ function initPipeMap() {
 
   pipeMap.on('click', onPipeMapClick);
   setTimeout(() => pipeMap.invalidateSize(), 150);
+  initMapLocationSearch();
 }
 
 function switchPipeLayer(mode) {
@@ -1159,4 +1160,311 @@ document.addEventListener('keydown', ev => {
     if (pipeDrawingActive) cancelDrawingPipe();
   }
 });
+
+// ============================================================
+// PENCARIAN NAMA LOKASI, LANDMARK, ALAMAT & KOORDINAT PETA
+// ============================================================
+let mapSearchTimeout = null;
+let mapSearchMarker  = null;
+let mapSearchResultsData = [];
+let mapSearchSelectedIndex = -1;
+
+function initMapLocationSearch() {
+  const input = document.getElementById('mapSearchInput');
+  const clearBtn = document.getElementById('mapSearchClearBtn');
+  const dropdown = document.getElementById('mapSearchResults');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+
+    if (mapSearchTimeout) clearTimeout(mapSearchTimeout);
+    if (!q || q.length < 2) {
+      if (dropdown) dropdown.style.display = 'none';
+      return;
+    }
+
+    // Tampilkan indikator memuat hasil
+    if (dropdown) {
+      dropdown.style.display = 'block';
+      dropdown.innerHTML = `<div class="map-search-loading"><span class="spinner" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:5px;"></span> Mencari lokasi "${escHtml(q)}"...</div>`;
+    }
+
+    mapSearchTimeout = setTimeout(() => {
+      executeMapLocationSearch(q);
+    }, 320);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const items = dropdown ? dropdown.querySelectorAll('.map-search-item') : [];
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (items.length > 0) {
+        mapSearchSelectedIndex = (mapSearchSelectedIndex + 1) % items.length;
+        updateSearchItemSelection(items);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (items.length > 0) {
+        mapSearchSelectedIndex = (mapSearchSelectedIndex - 1 + items.length) % items.length;
+        updateSearchItemSelection(items);
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (mapSearchSelectedIndex >= 0 && mapSearchResultsData[mapSearchSelectedIndex]) {
+        selectMapSearchResult(mapSearchResultsData[mapSearchSelectedIndex]);
+      } else if (mapSearchResultsData.length > 0) {
+        selectMapSearchResult(mapSearchResultsData[0]);
+      }
+    } else if (e.key === 'Escape') {
+      if (dropdown) dropdown.style.display = 'none';
+    }
+  });
+
+  // Tutup dropdown saat klik di luar area pencarian
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.pipe-map-search-box')) {
+      if (dropdown) dropdown.style.display = 'none';
+    }
+  });
+}
+
+function updateSearchItemSelection(items) {
+  items.forEach((item, idx) => {
+    item.classList.toggle('is-selected', idx === mapSearchSelectedIndex);
+    if (idx === mapSearchSelectedIndex) {
+      item.scrollIntoView({ block: 'nearest' });
+    }
+  });
+}
+
+function clearMapSearch() {
+  const input = document.getElementById('mapSearchInput');
+  const clearBtn = document.getElementById('mapSearchClearBtn');
+  const dropdown = document.getElementById('mapSearchResults');
+  if (input) input.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (dropdown) dropdown.style.display = 'none';
+  if (mapSearchMarker && pipeMap) {
+    try { pipeMap.removeLayer(mapSearchMarker); } catch(e){}
+    mapSearchMarker = null;
+  }
+}
+
+async function executeMapLocationSearch(query) {
+  const dropdown = document.getElementById('mapSearchResults');
+  if (!dropdown) return;
+  mapSearchResultsData = [];
+  mapSearchSelectedIndex = -1;
+
+  const results = [];
+
+  // 1. Deteksi input Koordinat langsung: e.g. "-2.9657, 119.9008" atau "-2.9657 119.9008"
+  const cleanQ = query.replace(/[()]/g, '').trim();
+  const parts = cleanQ.split(/[,;\s]+/).map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+  if (parts.length === 2 && Math.abs(parts[0]) <= 90 && Math.abs(parts[1]) <= 180) {
+    results.push({
+      type: 'coordinate',
+      icon: '📌',
+      title: `Koordinat: ${parts[0].toFixed(6)}, ${parts[1].toFixed(6)}`,
+      subtitle: 'Buka dan terbang langsung ke titik GPS ini',
+      lat: parts[0],
+      lng: parts[1]
+    });
+  }
+
+  // 2. Pencarian Jalur Pipa lokal
+  if (Array.isArray(allPipes)) {
+    const qLower = query.toLowerCase();
+    allPipes.forEach(pipe => {
+      if (pipe.nama && pipe.nama.toLowerCase().includes(qLower)) {
+        const coords = parsePolyStr(pipe.koordinat);
+        if (coords.length > 0) {
+          results.push({
+            type: 'pipe',
+            icon: '🔧',
+            badge: 'JALUR PIPA',
+            badgeColor: '#2563eb',
+            title: pipe.nama,
+            subtitle: `Panjang: ${formatPipeLength(pipe.panjang)} • Elevasi: ${pipe.elev_awal || '-'}m ➔ ${pipe.elev_akhir || '-'}m`,
+            lat: coords[0][0],
+            lng: coords[0][1],
+            pipeData: pipe
+          });
+        }
+      }
+    });
+  }
+
+  // 3. Pencarian Pelanggan lokal
+  if (Array.isArray(allData)) {
+    const qLower = query.toLowerCase();
+    let matchCustCount = 0;
+    for (let c of allData) {
+      if (matchCustCount >= 4) break;
+      const matchName = (c.nama || '').toLowerCase().includes(qLower);
+      const matchAddr = (c.alamat || '').toLowerCase().includes(qLower);
+      if (matchName || matchAddr) {
+        const lat = parseFloat(c.latitude);
+        const lng = parseFloat(c.longitude);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          results.push({
+            type: 'customer',
+            icon: '👤',
+            badge: 'PELANGGAN',
+            badgeColor: '#10b981',
+            title: c.nama || 'Pelanggan',
+            subtitle: `${c.alamat || 'Alamat terdaftar'} (${c.klasifikasi || 'Umum'})`,
+            lat: lat,
+            lng: lng
+          });
+          matchCustCount++;
+        }
+      }
+    }
+  }
+
+  // 4. Pencarian Geocoding Nama Lokasi / Desa / Landmark Online via OpenStreetMap Nominatim
+  try {
+    // Prioritaskan wilayah Toraja Utara / Sulawesi Selatan
+    const viewbox = '119.5,-3.4,120.3,-2.6';
+    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=id&viewbox=${viewbox}&bounded=0&limit=6&addressdetails=1`;
+    const res = await fetch(nominatimUrl, { headers: { 'Accept': 'application/json' } });
+    if (res.ok) {
+      const places = await res.json();
+      if (Array.isArray(places)) {
+        places.forEach(item => {
+          const lat = parseFloat(item.lat);
+          const lng = parseFloat(item.lon);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            let icon = '📍';
+            const cat = (item.type || '') + ' ' + (item.class || '');
+            if (cat.includes('school') || cat.includes('college')) icon = '🏫';
+            else if (cat.includes('worship') || cat.includes('church') || cat.includes('mosque')) icon = '⛪';
+            else if (cat.includes('market') || cat.includes('shop')) icon = '🛒';
+            else if (cat.includes('village') || cat.includes('hamlet') || cat.includes('town')) icon = '🏘️';
+            else if (cat.includes('hospital') || cat.includes('clinic')) icon = '🏥';
+            else if (cat.includes('peak') || cat.includes('mountain') || cat.includes('natural')) icon = '⛰️';
+            else if (cat.includes('highway') || cat.includes('road')) icon = '🛣️';
+
+            const nameParts = (item.display_name || '').split(',');
+            const titleName = nameParts[0] ? nameParts[0].trim() : query;
+            const subtitle  = nameParts.slice(1, 4).join(',').trim() || 'Indonesia';
+
+            results.push({
+              type: 'place',
+              icon: icon,
+              title: titleName,
+              subtitle: subtitle,
+              lat: lat,
+              lng: lng
+            });
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("Geocoding fetch warning:", err);
+  }
+
+  mapSearchResultsData = results;
+
+  // Render hasil ke dropdown
+  if (results.length === 0) {
+    dropdown.innerHTML = `
+      <div class="map-search-empty">
+        <div>🔍 Lokasi <strong>"${escHtml(query)}"</strong> tidak ditemukan.</div>
+        <div style="font-size:10.5px;color:#94a3b8;margin-top:3px;">Coba nama desa, jalan, kecamatan (contoh: <em>Minanga</em>, <em>Balla</em>, <em>Sa'dan</em>, <em>Rantepao</em>), atau koordinat GPS.</div>
+      </div>
+    `;
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  let html = '';
+  results.forEach((item, idx) => {
+    const badgeHtml = item.badge ? `<span class="map-search-badge" style="background:${item.badgeColor || '#64748b'};color:#fff;">${item.badge}</span>` : '';
+    html += `
+      <div class="map-search-item" onclick="onMapSearchItemClick(${idx})">
+        <div class="map-search-item-icon">${item.icon}</div>
+        <div class="map-search-item-info">
+          <div class="map-search-item-title">${badgeHtml}${escHtml(item.title)}</div>
+          <div class="map-search-item-sub">${escHtml(item.subtitle)}</div>
+        </div>
+      </div>
+    `;
+  });
+
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+}
+
+function onMapSearchItemClick(idx) {
+  if (mapSearchResultsData[idx]) {
+    selectMapSearchResult(mapSearchResultsData[idx]);
+  }
+}
+
+function selectMapSearchResult(item) {
+  const dropdown = document.getElementById('mapSearchResults');
+  const input = document.getElementById('mapSearchInput');
+  if (dropdown) dropdown.style.display = 'none';
+  if (input) input.value = item.title;
+
+  if (!pipeMap) return;
+
+  const lat = item.lat;
+  const lng = item.lng;
+
+  // 1. Bersihkan marker pencarian sebelumnya jika ada
+  if (mapSearchMarker) {
+    try { pipeMap.removeLayer(mapSearchMarker); } catch(e){}
+    mapSearchMarker = null;
+  }
+
+  // 2. Zoom dan terbang mulus ke lokasi hasil pencarian
+  pipeMap.flyTo([lat, lng], 17, {
+    animate: true,
+    duration: 1.2
+  });
+
+  // 3. Tambahkan pin penanda khusus hasil pencarian
+  const searchIcon = L.divIcon({
+    className: 'search-location-pin',
+    html: `
+      <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+        <div style="width:34px;height:34px;border-radius:50%;background:#0284c7;border:2.5px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:16px;">
+          ${item.icon || '📍'}
+        </div>
+        <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #0284c7;"></div>
+      </div>
+    `,
+    iconSize: [34, 40],
+    iconAnchor: [17, 40],
+    popupAnchor: [0, -40]
+  });
+
+  mapSearchMarker = L.marker([lat, lng], { icon: searchIcon }).addTo(pipeMap);
+
+  mapSearchMarker.bindPopup(`
+    <div style="font-size:12px;line-height:1.45;min-width:190px;">
+      <div style="font-weight:800;color:#0284c7;font-size:13px;margin-bottom:2px;">
+        ${item.icon || '📍'} ${escHtml(item.title)}
+      </div>
+      <div style="color:#64748b;font-size:11px;margin-bottom:6px;">${escHtml(item.subtitle)}</div>
+      <div style="font-family:monospace;font-size:10px;background:#f1f5f9;padding:4px 7px;border-radius:5px;margin-bottom:8px;color:#334155;">
+        Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}
+      </div>
+      <button type="button" onclick="if(mapSearchMarker&&pipeMap){pipeMap.removeLayer(mapSearchMarker);mapSearchMarker=null;}" style="cursor:pointer;background:#f8fafc;border:1px solid #cbd5e1;padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;color:#64748b;display:inline-flex;align-items:center;gap:3px;">
+        ✕ Hapus Pin
+      </button>
+    </div>
+  `).openPopup();
+
+  // Jika item adalah jalur pipa, buka juga rutenya
+  if (item.type === 'pipe' && item.pipeData) {
+    zoomToPipe(item.pipeData.rowIndex);
+  }
+}
 
