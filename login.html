@@ -338,6 +338,24 @@
           </div>
         </div>
 
+        <!-- Input Nama Lengkap Petugas Surveyor (Tampil Otomatis untuk Role Surveyor) -->
+        <div class="form-group" id="petugasGroup" style="display:none;">
+          <label for="petugasNamaInput">Nama Lengkap Petugas Surveyor <span style="color:#0284c7;">*</span></label>
+          <div class="input-wrapper">
+            <span class="input-icon">📋</span>
+            <input
+              type="text"
+              id="petugasNamaInput"
+              class="form-control"
+              placeholder="Contoh: Yohanes Sambolangi / Marthen Rante"
+              autocomplete="name"
+            />
+          </div>
+          <small style="display:block;font-size:11px;color:#64748b;margin-top:4px;">
+            Nama ini otomatis tercatat sebagai <strong>Sumber Data</strong> pada setiap pendaftaran calon pelanggan.
+          </small>
+        </div>
+
         <div class="form-group">
           <label for="passwordInput">Password</label>
           <div class="input-wrapper">
@@ -395,12 +413,35 @@
   </div>
 
   <script>
+    function updatePetugasVisibility() {
+      const user = (document.getElementById('usernameInput').value || '').trim().toLowerCase();
+      const group = document.getElementById('petugasGroup');
+      if (user === 'survey') {
+        group.style.display = 'block';
+        const petInput = document.getElementById('petugasNamaInput');
+        if (!petInput.value) {
+          petInput.value = localStorage.getItem('saved_petugas_nama') || '';
+        }
+      } else {
+        group.style.display = 'none';
+      }
+    }
+
     // Set username otomatis saat tombol role diklik dan arahkan ke input password
     function selectRoleUser(username) {
       document.getElementById('usernameInput').value = username;
+      updatePetugasVisibility();
       const passInput = document.getElementById('passwordInput');
       passInput.value = '';
       hideError();
+
+      if (username === 'survey') {
+        const petInput = document.getElementById('petugasNamaInput');
+        if (!petInput.value) {
+          petInput.focus();
+          return;
+        }
+      }
       passInput.focus();
     }
 
@@ -421,6 +462,7 @@
 
       const user = document.getElementById('usernameInput').value.trim();
       const pass = document.getElementById('passwordInput').value.trim();
+      const petugasNama = (document.getElementById('petugasNamaInput').value || '').trim();
       const btn  = document.getElementById('btnSubmit');
 
       if (!user || !pass) {
@@ -428,11 +470,17 @@
         return;
       }
 
+      if (user.toLowerCase() === 'survey' && !petugasNama) {
+        showError('Nama Lengkap Petugas Surveyor wajib diisi agar tercatat di Sumber Data.');
+        document.getElementById('petugasNamaInput').focus();
+        return;
+      }
+
       btn.disabled = true;
       btn.innerHTML = '<span>Memverifikasi...</span>';
 
       try {
-        const result = await authenticateUser(user, pass);
+        const result = await authenticateUser(user, pass, petugasNama);
         if (result.success) {
           // Redirect ke halaman beranda role yang sesuai
           window.location.replace(result.home);
@@ -446,6 +494,19 @@
         btn.innerHTML = '<span>Masuk</span> <span>➔</span>';
       }
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const inputUser = document.getElementById('usernameInput');
+      if (inputUser) {
+        inputUser.addEventListener('input', updatePetugasVisibility);
+      }
+      const savedPetugas = localStorage.getItem('saved_petugas_nama');
+      if (savedPetugas) {
+        const petInput = document.getElementById('petugasNamaInput');
+        if (petInput) petInput.value = savedPetugas;
+      }
+      updatePetugasVisibility();
+    });
   </script>
 </body>
 </html>

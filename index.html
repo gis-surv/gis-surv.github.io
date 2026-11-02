@@ -79,6 +79,20 @@
       <p>Pendataan Calon Pelanggan &bull; Tandai atap rumah &amp; lengkapi profil</p>
     </div>
 
+    <!-- Indikator Petugas / Sumber Data -->
+    <div id="surveyorBar" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">📋</span>
+        <div>
+          <div style="font-size:10.5px;color:#0284c7;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">Sumber Data / Petugas Surveyor:</div>
+          <strong id="displayPetugasNama" style="font-size:13.5px;color:#0c4a6e;">-</strong>
+        </div>
+      </div>
+      <button type="button" id="btnUbahPetugas" style="background:#ffffff;border:1px solid #7dd3fc;color:#0284c7;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all 0.15s ease;">
+        ✏️ Ubah Nama
+      </button>
+    </div>
+
     <form id="customerForm" novalidate>
       <!-- Area Peta Satelit Google & Digitasi Atap Bangunan -->
       <div class="map-header-row">
@@ -117,6 +131,7 @@
       <input type="hidden" id="latitude" name="latitude">
       <input type="hidden" id="longitude" name="longitude">
       <input type="hidden" id="polygon_coords" name="polygon_coords">
+      <input type="hidden" id="sumber_data" name="sumber_data">
 
       <!-- Form Data Diri -->
       <div class="form-group">

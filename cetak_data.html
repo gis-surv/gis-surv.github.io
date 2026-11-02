@@ -562,7 +562,7 @@
               <th>Alamat Lengkap</th>
               <th style="width: 130px;">Peruntukan</th>
               <th style="width: 120px;">Klasifikasi</th>
-              <th style="width: 75px;" class="col-center">Paraf Surveyor</th>
+              <th style="width: 120px;" class="col-center">Sumber Data</th>
             </tr>
           </thead>
           <tbody id="tableBody">
@@ -669,7 +669,7 @@
           <td>${escapeHtml(row.alamat || '-')}</td>
           <td>${escapeHtml(row.peruntukan || '-')}</td>
           <td>${escapeHtml(row.klasifikasi || '-')}</td>
-          <td class="col-center" style="color:#cbd5e1;">______</td>
+          <td class="col-center" style="font-weight:600;font-size:11px;color:#0369a1;">${escapeHtml(row.sumber || row.petugas || 'Surveyor')}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -703,7 +703,8 @@
           (item.nama && item.nama.toLowerCase().includes(query)) ||
           (item.nik && item.nik.toLowerCase().includes(query)) ||
           (item.whatsapp && item.whatsapp.toLowerCase().includes(query)) ||
-          (item.alamat && item.alamat.toLowerCase().includes(query));
+          (item.alamat && item.alamat.toLowerCase().includes(query)) ||
+          (item.sumber && item.sumber.toLowerCase().includes(query));
 
         const matchKlasifikasi = !klasifikasi ||
           (item.klasifikasi && item.klasifikasi.toLowerCase().includes(klasifikasi));
@@ -733,7 +734,8 @@
         "No_WhatsApp",
         "Alamat",
         "Peruntukan",
-        "Klasifikasi"
+        "Klasifikasi",
+        "Sumber_Data"
       ];
 
       const csvRows = [headers.join(",")];
@@ -754,7 +756,8 @@
           escapeCsvValue(row.whatsapp || ''),
           escapeCsvValue(row.alamat || ''),
           escapeCsvValue(row.peruntukan || ''),
-          escapeCsvValue(row.klasifikasi || '')
+          escapeCsvValue(row.klasifikasi || ''),
+          escapeCsvValue(row.sumber || row.petugas || 'Surveyor')
         ];
 
         csvRows.push(values.join(","));
