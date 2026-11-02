@@ -524,6 +524,145 @@ tbody td { padding: 10px 13px; color: #334155; vertical-align: middle; }
   gap: 8px;
 }
 
+/* Kotak Pencarian Lokasi di Toolbar Peta */
+.pipe-map-search-box {
+  position: relative;
+  flex: 1;
+  max-width: 420px;
+  min-width: 240px;
+  margin: 0 4px;
+}
+.pipe-map-search-box .search-box-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+.pipe-map-search-box input {
+  width: 100%;
+  height: 32px;
+  padding: 0 30px 0 30px;
+  border-radius: 20px;
+  border: 1.5px solid #cbd5e1;
+  font-size: 12px;
+  color: #1e293b;
+  background: #ffffff;
+  outline: none;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+.pipe-map-search-box input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+.pipe-map-search-box #mapSearchClearBtn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  display: none;
+  border-radius: 50%;
+}
+.pipe-map-search-box #mapSearchClearBtn:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+/* Dropdown Hasil Pencarian Lokasi */
+.map-search-dropdown {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  max-height: 290px;
+  overflow-y: auto;
+  z-index: 10000;
+  animation: searchDropIn 0.15s ease-out;
+}
+@keyframes searchDropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.map-search-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  transition: background 0.12s ease;
+}
+.map-search-item:last-child {
+  border-bottom: none;
+}
+.map-search-item:hover,
+.map-search-item.is-selected {
+  background: #f0f9ff;
+}
+.map-search-item-icon {
+  font-size: 15px;
+  line-height: 1.2;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.map-search-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.map-search-item-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-search-item-sub {
+  font-size: 10.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.map-search-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-right: 5px;
+}
+.map-search-empty {
+  padding: 14px 12px;
+  font-size: 11.5px;
+  color: #64748b;
+  text-align: center;
+}
+.map-search-loading {
+  padding: 12px;
+  font-size: 11.5px;
+  color: #0284c7;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .pipe-status-bar {
   padding: 7px 14px;
   background: #f8fafc;
