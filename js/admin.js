@@ -35,6 +35,7 @@ let pipeNodeMarkers     = [];
 let allPipes            = [];
 let pipeLayers          = {}; // id/rowIndex -> L.polyline
 let pipeLayerVisible    = {};
+let pipeMapInitialCenterSet = false;
 
 const PIPE_PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#be185d', '#ea580c'];
 let pipeColorIdx = 0;
@@ -525,15 +526,14 @@ function initPipeMap() {
   });
 
   pipeMap = L.map('pipeMap', {
-    center: [TORAJA_LAT, TORAJA_LNG],
-    zoom: 15,
+    center: [-2.894552, 119.855836],
+    zoom: 16,
     layers: [pipeLayerSat],
     zoomControl: true
   });
 
   pipeMap.on('click', onPipeMapClick);
   setTimeout(() => pipeMap.invalidateSize(), 150);
-  initMapLocationSearch();
 }
 
 function switchPipeLayer(mode) {
@@ -764,8 +764,10 @@ function displayAllPipesOnMap(pipes) {
   setTimeout(() => {
     if (pipeMap) {
       pipeMap.invalidateSize();
-      if (allBounds.length > 0 && !pipeDrawingActive) {
-        pipeMap.fitBounds(L.latLngBounds(allBounds), { padding: [40, 40] });
+      // Tetapkan tampilan awal peta di koordinat Landorundun (-2.894552, 119.855836)
+      if (!pipeMapInitialCenterSet && !pipeDrawingActive) {
+        pipeMap.setView([-2.894552, 119.855836], 16);
+        pipeMapInitialCenterSet = true;
       }
     }
   }, 100);
@@ -1162,294 +1164,72 @@ document.addEventListener('keydown', ev => {
 });
 
 // ============================================================
-// PENCARIAN NAMA LOKASI, LANDMARK, ALAMAT & KOORDINAT PETA
+// PENCARIAN & NAVIGASI KOORDINAT PETA (MISAL: -2.894552, 119.855836)
 // ============================================================
-let mapSearchTimeout = null;
-let mapSearchMarker  = null;
-let mapSearchResultsData = [];
-let mapSearchSelectedIndex = -1;
+let searchedCoordMarker = null;
 
-function initMapLocationSearch() {
-  const input = document.getElementById('mapSearchInput');
-  const clearBtn = document.getElementById('mapSearchClearBtn');
-  const dropdown = document.getElementById('mapSearchResults');
+function goToSearchedCoord() {
+  const input = document.getElementById('coordSearchInput');
+  const clearBtn = document.getElementById('coordSearchClearBtn');
   if (!input) return;
 
-  input.addEventListener('input', () => {
-    const q = input.value.trim();
-    if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
-
-    if (mapSearchTimeout) clearTimeout(mapSearchTimeout);
-    if (!q || q.length < 2) {
-      if (dropdown) dropdown.style.display = 'none';
-      return;
-    }
-
-    // Tampilkan indikator memuat hasil
-    if (dropdown) {
-      dropdown.style.display = 'block';
-      dropdown.innerHTML = `<div class="map-search-loading"><span class="spinner" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:5px;"></span> Mencari lokasi "${escHtml(q)}"...</div>`;
-    }
-
-    mapSearchTimeout = setTimeout(() => {
-      executeMapLocationSearch(q);
-    }, 320);
-  });
-
-  input.addEventListener('keydown', (e) => {
-    const items = dropdown ? dropdown.querySelectorAll('.map-search-item') : [];
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (items.length > 0) {
-        mapSearchSelectedIndex = (mapSearchSelectedIndex + 1) % items.length;
-        updateSearchItemSelection(items);
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (items.length > 0) {
-        mapSearchSelectedIndex = (mapSearchSelectedIndex - 1 + items.length) % items.length;
-        updateSearchItemSelection(items);
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (mapSearchSelectedIndex >= 0 && mapSearchResultsData[mapSearchSelectedIndex]) {
-        selectMapSearchResult(mapSearchResultsData[mapSearchSelectedIndex]);
-      } else if (mapSearchResultsData.length > 0) {
-        selectMapSearchResult(mapSearchResultsData[0]);
-      }
-    } else if (e.key === 'Escape') {
-      if (dropdown) dropdown.style.display = 'none';
-    }
-  });
-
-  // Tutup dropdown saat klik di luar area pencarian
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.pipe-map-search-box')) {
-      if (dropdown) dropdown.style.display = 'none';
-    }
-  });
-}
-
-function updateSearchItemSelection(items) {
-  items.forEach((item, idx) => {
-    item.classList.toggle('is-selected', idx === mapSearchSelectedIndex);
-    if (idx === mapSearchSelectedIndex) {
-      item.scrollIntoView({ block: 'nearest' });
-    }
-  });
-}
-
-function clearMapSearch() {
-  const input = document.getElementById('mapSearchInput');
-  const clearBtn = document.getElementById('mapSearchClearBtn');
-  const dropdown = document.getElementById('mapSearchResults');
-  if (input) input.value = '';
-  if (clearBtn) clearBtn.style.display = 'none';
-  if (dropdown) dropdown.style.display = 'none';
-  if (mapSearchMarker && pipeMap) {
-    try { pipeMap.removeLayer(mapSearchMarker); } catch(e){}
-    mapSearchMarker = null;
-  }
-}
-
-async function executeMapLocationSearch(query) {
-  const dropdown = document.getElementById('mapSearchResults');
-  if (!dropdown) return;
-  mapSearchResultsData = [];
-  mapSearchSelectedIndex = -1;
-
-  const results = [];
-
-  // 1. Deteksi input Koordinat langsung: e.g. "-2.9657, 119.9008" atau "-2.9657 119.9008"
-  const cleanQ = query.replace(/[()]/g, '').trim();
-  const parts = cleanQ.split(/[,;\s]+/).map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-  if (parts.length === 2 && Math.abs(parts[0]) <= 90 && Math.abs(parts[1]) <= 180) {
-    results.push({
-      type: 'coordinate',
-      icon: '📌',
-      title: `Koordinat: ${parts[0].toFixed(6)}, ${parts[1].toFixed(6)}`,
-      subtitle: 'Buka dan terbang langsung ke titik GPS ini',
-      lat: parts[0],
-      lng: parts[1]
-    });
-  }
-
-  // 2. Pencarian Jalur Pipa lokal
-  const pipeList = typeof allPipes !== 'undefined' && Array.isArray(allPipes) ? allPipes : [];
-  if (pipeList.length > 0) {
-    const qLower = query.toLowerCase();
-    pipeList.forEach(pipe => {
-      if (pipe.nama && pipe.nama.toLowerCase().includes(qLower)) {
-        const coords = parsePolyStr(pipe.koordinat);
-        if (coords.length > 0) {
-          results.push({
-            type: 'pipe',
-            icon: '🔧',
-            badge: 'JALUR PIPA',
-            badgeColor: '#2563eb',
-            title: pipe.nama,
-            subtitle: `Panjang: ${formatPipeLength(pipe.panjang)} • Elevasi: ${pipe.elev_awal || '-'}m ➔ ${pipe.elev_akhir || '-'}m`,
-            lat: coords[0][0],
-            lng: coords[0][1],
-            pipeData: pipe
-          });
-        }
-      }
-    });
-  }
-
-  // 3. Pencarian Pelanggan lokal
-  const customerList = typeof allRows !== 'undefined' && Array.isArray(allRows) ? allRows : (typeof allData !== 'undefined' && Array.isArray(allData) ? allData : []);
-  if (customerList.length > 0) {
-    const qLower = query.toLowerCase();
-    let matchCustCount = 0;
-    for (let c of customerList) {
-      if (matchCustCount >= 4) break;
-      const matchName = (c.nama || '').toLowerCase().includes(qLower);
-      const matchAddr = (c.alamat || '').toLowerCase().includes(qLower);
-      if (matchName || matchAddr) {
-        const lat = parseFloat(c.latitude);
-        const lng = parseFloat(c.longitude);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          results.push({
-            type: 'customer',
-            icon: '👤',
-            badge: 'PELANGGAN',
-            badgeColor: '#10b981',
-            title: c.nama || 'Pelanggan',
-            subtitle: `${c.alamat || 'Alamat terdaftar'} (${c.klasifikasi || 'Umum'})`,
-            lat: lat,
-            lng: lng
-          });
-          matchCustCount++;
-        }
-      }
-    }
-  }
-
-  // 4. Pencarian Geocoding Nama Lokasi / Desa / Landmark Online via OpenStreetMap Nominatim
-  try {
-    const viewbox = '119.5,-3.4,120.3,-2.6';
-    const cleanSearch = query.trim();
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanSearch)}&countrycodes=id&viewbox=${viewbox}&bounded=0&limit=8&addressdetails=1`;
-    const res = await fetch(nominatimUrl, { headers: { 'Accept': 'application/json' } });
-    if (res.ok) {
-      let places = await res.json();
-
-      // Jika tidak ada hasil dan kata kunci memiliki tanda petik (misal: "To' Langi"), coba cari tanpa petik ("To Langi")
-      if ((!Array.isArray(places) || places.length === 0) && cleanSearch.includes("'")) {
-        const fallbackSearch = cleanSearch.replace(/'/g, ' ');
-        const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fallbackSearch)}&countrycodes=id&viewbox=${viewbox}&bounded=0&limit=8&addressdetails=1`;
-        const res2 = await fetch(fallbackUrl, { headers: { 'Accept': 'application/json' } });
-        if (res2.ok) places = await res2.json();
-      }
-
-      if (Array.isArray(places)) {
-        places.forEach(item => {
-          const lat = parseFloat(item.lat);
-          const lng = parseFloat(item.lon);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            let icon = '📍';
-            const cat = ((item.type || '') + ' ' + (item.class || '') + ' ' + (item.display_name || '')).toLowerCase();
-            if (cat.includes('school') || cat.includes('sekolah') || cat.includes('smp') || cat.includes('sma') || cat.includes('sd')) icon = '🏫';
-            else if (cat.includes('church') || cat.includes('gereja') || cat.includes('mosque') || cat.includes('masjid')) icon = '⛪';
-            else if (cat.includes('cemetery') || cat.includes('grave') || cat.includes('kuburan') || cat.includes('makam')) icon = '🪦';
-            else if (cat.includes('market') || cat.includes('pasar') || cat.includes('shop') || cat.includes('toko')) icon = '🛒';
-            else if (cat.includes('village') || cat.includes('desa') || cat.includes('kelurahan') || cat.includes('hamlet')) icon = '🏘️';
-            else if (cat.includes('hospital') || cat.includes('rumah sakit') || cat.includes('puskesmas') || cat.includes('klinik')) icon = '🏥';
-            else if (cat.includes('peak') || cat.includes('mountain') || cat.includes('gunung') || cat.includes('buntu')) icon = '⛰️';
-            else if (cat.includes('highway') || cat.includes('road') || cat.includes('jalan')) icon = '🛣️';
-
-            const nameParts = (item.display_name || '').split(',');
-            const titleName = nameParts[0] ? nameParts[0].trim() : query;
-            const subtitle  = nameParts.slice(1, 4).join(',').trim() || 'Indonesia';
-
-            results.push({
-              type: 'place',
-              icon: icon,
-              title: titleName,
-              subtitle: subtitle,
-              lat: lat,
-              lng: lng
-            });
-          }
-        });
-      }
-    }
-  } catch (err) {
-    console.warn("Geocoding fetch warning:", err);
-  }
-
-  mapSearchResultsData = results;
-
-  // Render hasil ke dropdown
-  if (results.length === 0) {
-    dropdown.innerHTML = `
-      <div class="map-search-empty">
-        <div>🔍 Lokasi <strong>"${escHtml(query)}"</strong> tidak ditemukan.</div>
-        <div style="font-size:10.5px;color:#94a3b8;margin-top:3px;">Coba nama desa, jalan, kecamatan (contoh: <em>Minanga</em>, <em>Balla</em>, <em>Sa'dan</em>, <em>Rantepao</em>), atau koordinat GPS.</div>
-      </div>
-    `;
-    dropdown.style.display = 'block';
+  const raw = input.value.trim();
+  if (!raw) {
+    alert("Silakan ketik atau tempel koordinat terlebih dahulu.\nContoh: -2.894552, 119.855836");
+    input.focus();
     return;
   }
 
-  let html = '';
-  results.forEach((item, idx) => {
-    const badgeHtml = item.badge ? `<span class="map-search-badge" style="background:${item.badgeColor || '#64748b'};color:#fff;">${item.badge}</span>` : '';
-    html += `
-      <div class="map-search-item" onclick="onMapSearchItemClick(${idx})">
-        <div class="map-search-item-icon">${item.icon}</div>
-        <div class="map-search-item-info">
-          <div class="map-search-item-title">${badgeHtml}${escHtml(item.title)}</div>
-          <div class="map-search-item-sub">${escHtml(item.subtitle)}</div>
-        </div>
-      </div>
-    `;
-  });
+  // Parse koordinat (dukung pemisah koma, spasi, titik koma)
+  const clean = raw.replace(/[()\[\]]/g, '').trim();
+  const parts = clean.split(/[,;\s]+/).map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
 
-  dropdown.innerHTML = html;
-  dropdown.style.display = 'block';
-}
-
-function onMapSearchItemClick(idx) {
-  if (mapSearchResultsData[idx]) {
-    selectMapSearchResult(mapSearchResultsData[idx]);
+  if (parts.length < 2) {
+    alert("Format koordinat tidak valid!\nFormat yang benar: Latitude, Longitude\nContoh: -2.894552, 119.855836");
+    input.focus();
+    return;
   }
-}
 
-function selectMapSearchResult(item) {
-  const dropdown = document.getElementById('mapSearchResults');
-  const input = document.getElementById('mapSearchInput');
-  if (dropdown) dropdown.style.display = 'none';
-  if (input) input.value = item.title;
+  let lat = parts[0];
+  let lng = parts[1];
 
+  // Validasi rentang latitude (-90 s.d 90) dan longitude (-180 s.d 180)
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    // Jika tertukar (misal user input: 119.855836, -2.894552)
+    if (Math.abs(lng) <= 90 && Math.abs(lat) <= 180) {
+      const temp = lat;
+      lat = lng;
+      lng = temp;
+    } else {
+      alert("Nilai koordinat di luar batas bumi!\nLatitude harus antara -90 dan 90\nLongitude harus antara -180 dan 180");
+      return;
+    }
+  }
+
+  if (clearBtn) clearBtn.style.display = 'block';
   if (!pipeMap) return;
 
-  const lat = item.lat;
-  const lng = item.lng;
-
-  // 1. Bersihkan marker pencarian sebelumnya jika ada
-  if (mapSearchMarker) {
-    try { pipeMap.removeLayer(mapSearchMarker); } catch(e){}
-    mapSearchMarker = null;
+  // Hapus marker pencarian sebelumnya
+  if (searchedCoordMarker) {
+    try { pipeMap.removeLayer(searchedCoordMarker); } catch(e){}
+    searchedCoordMarker = null;
   }
 
-  // 2. Zoom dan terbang mulus ke lokasi hasil pencarian
-  pipeMap.flyTo([lat, lng], 17, {
+  // Terbang mulus ke titik koordinat dengan zoom detail (level 18)
+  pipeMap.flyTo([lat, lng], 18, {
     animate: true,
     duration: 1.2
   });
 
-  // 3. Tambahkan pin penanda khusus hasil pencarian
-  const searchIcon = L.divIcon({
-    className: 'search-location-pin',
+  // Buat pin penanda khusus koordinat berwarna merah terang
+  const pinIcon = L.divIcon({
+    className: 'coord-pin-marker',
     html: `
       <div style="position:relative;display:flex;align-items:center;justify-content:center;">
-        <div style="width:34px;height:34px;border-radius:50%;background:#0284c7;border:2.5px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:16px;">
-          ${item.icon || '📍'}
+        <div style="width:34px;height:34px;border-radius:50%;background:#ef4444;border:3px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:16px;">
+          📍
         </div>
-        <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #0284c7;"></div>
+        <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #ef4444;"></div>
       </div>
     `,
     iconSize: [34, 40],
@@ -1457,26 +1237,34 @@ function selectMapSearchResult(item) {
     popupAnchor: [0, -40]
   });
 
-  mapSearchMarker = L.marker([lat, lng], { icon: searchIcon }).addTo(pipeMap);
+  searchedCoordMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(pipeMap);
 
-  mapSearchMarker.bindPopup(`
-    <div style="font-size:12px;line-height:1.45;min-width:190px;">
-      <div style="font-weight:800;color:#0284c7;font-size:13px;margin-bottom:2px;">
-        ${item.icon || '📍'} ${escHtml(item.title)}
+  searchedCoordMarker.bindPopup(`
+    <div style="font-size:12px;line-height:1.45;min-width:180px;">
+      <div style="font-weight:800;color:#ef4444;font-size:13px;margin-bottom:3px;">
+        📍 Titik Koordinat
       </div>
-      <div style="color:#64748b;font-size:11px;margin-bottom:6px;">${escHtml(item.subtitle)}</div>
-      <div style="font-family:monospace;font-size:10px;background:#f1f5f9;padding:4px 7px;border-radius:5px;margin-bottom:8px;color:#334155;">
-        Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}
+      <div style="font-family:monospace;font-size:11px;background:#fef2f2;border:1px solid #fecaca;padding:4px 8px;border-radius:5px;margin-bottom:8px;color:#991b1b;">
+        <strong>Lat:</strong> ${lat.toFixed(6)}<br>
+        <strong>Lng:</strong> ${lng.toFixed(6)}
       </div>
-      <button type="button" onclick="if(mapSearchMarker&&pipeMap){pipeMap.removeLayer(mapSearchMarker);mapSearchMarker=null;}" style="cursor:pointer;background:#f8fafc;border:1px solid #cbd5e1;padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;color:#64748b;display:inline-flex;align-items:center;gap:3px;">
+      <button type="button" onclick="clearSearchedCoord()" style="cursor:pointer;background:#f8fafc;border:1px solid #cbd5e1;padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;color:#475569;">
         ✕ Hapus Pin
       </button>
     </div>
   `).openPopup();
 
-  // Jika item adalah jalur pipa, buka juga rutenya
-  if (item.type === 'pipe' && item.pipeData) {
-    zoomToPipe(item.pipeData.rowIndex);
+  showToast(`📍 Berhasil menuju koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'info');
+}
+
+function clearSearchedCoord() {
+  const input = document.getElementById('coordSearchInput');
+  const clearBtn = document.getElementById('coordSearchClearBtn');
+  if (input) input.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (searchedCoordMarker && pipeMap) {
+    try { pipeMap.removeLayer(searchedCoordMarker); } catch(e){}
+    searchedCoordMarker = null;
   }
 }
 
