@@ -41,6 +41,11 @@ document.addEventListener('DOMContentLoaded', function () {
   };
   L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
+  // Pastikan render ukuran peta sempurna di layar mobile
+  setTimeout(() => { map.invalidateSize(); }, 300);
+  window.addEventListener('resize', () => { map.invalidateSize(); });
+  window.addEventListener('orientationchange', () => { setTimeout(() => { map.invalidateSize(); }, 200); });
+
   // ==========================================
   // STATE DIGITASI POLIGON ATAP BANGUNAN
   // ==========================================
