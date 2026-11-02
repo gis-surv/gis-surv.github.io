@@ -275,13 +275,24 @@
               </div>
             </div>
 
-            <!-- Toolbar Layer Peta -->
+            <!-- Toolbar Layer Peta & Pencarian Lokasi -->
             <div class="pipe-map-toolbar">
-              <div style="display:flex;gap:4px;">
+              <div style="display:flex;gap:4px;align-items:center;">
                 <button class="layer-btn active" id="pipeLayerSat" onclick="switchPipeLayer('satellite')">🛰️ Satelit</button>
                 <button class="layer-btn" id="pipeLayerRoad" onclick="switchPipeLayer('roadmap')">🏢 Jalan</button>
                 <button class="layer-btn" id="pipeLayerTopo" onclick="switchPipeLayer('terrain')">⛰️ Kontur</button>
               </div>
+
+              <!-- Input Pencarian Lokasi, Landmark & Alamat di Peta -->
+              <div class="pipe-map-search-box">
+                <span class="search-box-icon">🔍</span>
+                <input type="text" id="mapSearchInput"
+                  placeholder="Cari lokasi, desa, sekolah, pasar, jalan, koordinat..."
+                  autocomplete="off" />
+                <button type="button" id="mapSearchClearBtn" onclick="clearMapSearch()" title="Hapus pencarian">✕</button>
+                <div id="mapSearchResults" class="map-search-dropdown" style="display:none;"></div>
+              </div>
+
               <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="loadPipes()">
                 🔄 Refresh Jalur Pipa
               </button>
