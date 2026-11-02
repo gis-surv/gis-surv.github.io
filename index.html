@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Rencana Pembangunan SPAM Landorundun — Pasang Sambungan Baru</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Konfigurasi & Auth Guard RBAC -->
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0284c7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="SPAM Landorundun" />
+
+  <!-- Icons & Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png" />
+
+  <!-- Open Graph (Facebook, WhatsApp, Telegram, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta property="og:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta property="og:image" content="assets/icons/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Peta Rencana Pembangunan SPAM Landorundun — PERUMDAM Amerta Toraya" />
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta name="twitter:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta name="twitter:image" content="assets/icons/og-image.png" />
+
+  <!-- PWA Helper Script -->
+  <script src="js/pwa.js" defer></script>
+</head>
+<body>
+
+  <!-- Navigasi Menu Header -->
+  <nav class="app-navbar">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <span>💧</span>
+        <span>PERUMDAM Amerta Toraya</span>
+      </div>
+      <div class="nav-links">
+        <a href="index.html" class="nav-item active">
+          <span>📍</span> Form &amp; Peta
+        </a>
+        <a href="cetak_peta.html" class="nav-item">
+          <span>🗺️</span> Cetak Peta
+        </a>
+        <a href="cetak_data.html" class="nav-item">
+          <span>📋</span> Cetak Data Pelanggan
+        </a>
+        <a href="cetak_pipa.html" class="nav-item">
+          <span>🔧</span> Cetak Data Pipa
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="app-card">
+    <div class="header">
+      <h1>Rencana Pembangunan SPAM Landorundun</h1>
+      <p>Pendataan Calon Pelanggan &bull; Tandai atap rumah &amp; lengkapi profil</p>
+    </div>
+
+    <form id="customerForm" novalidate>
+      <!-- Area Peta Satelit Google & Digitasi Atap Bangunan -->
+      <div class="map-header-row">
+        <label style="margin-bottom:0;">Bentuk &amp; Koordinat Atap Rumah</label>
+        <div class="draw-tools-bar">
+          <button type="button" id="btnDrawPolygon" class="btn-tool" title="Aktifkan mode tarik garis poligon keliling atap">
+            <span>✏️</span> Gambar Atap
+          </button>
+          <button type="button" id="btnFinishPolygon" class="btn-tool btn-tool-finish" style="display:none;" title="Tutup bidang atap">
+            <span>✅</span> Selesai
+          </button>
+          <button type="button" id="btnResetPolygon" class="btn-tool btn-tool-reset" style="display:none;" title="Hapus garis dan ulangi">
+            <span>🔄</span> Ulangi
+          </button>
+        </div>
+      </div>
+
+      <!-- Kotak Petunjuk Mode Gambar -->
+      <div id="drawInstructions" class="draw-instructions" style="display:none;">
+        <span>ℹ️</span> <strong>Mode Gambar Atap Aktif:</strong> Klik setiap sudut atap rumah di peta citra satelit (minimal 3 sudut). Klik "Selesai" untuk menutup bidang arsiran atap.
+      </div>
+
+      <div class="map-wrapper">
+        <div id="map"></div>
+        <button type="button" id="btnGps" class="btn-floating-gps">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
+          Lokasi Saya
+        </button>
+      </div>
+
+      <!-- Informasi Koordinat & Bidang Atap -->
+      <div class="coord-badge">
+        <div>Pusat: <span id="displayLat">-</span>, <span id="displayLng">-</span></div>
+        <div>Atap: <span id="displayArea">Titik Tunggal</span></div>
+      </div>
+      <input type="hidden" id="latitude" name="latitude">
+      <input type="hidden" id="longitude" name="longitude">
+      <input type="hidden" id="polygon_coords" name="polygon_coords">
+
+      <!-- Form Data Diri -->
+      <div class="form-group">
+        <label for="nama">Nama Lengkap</label>
+        <input type="text" id="nama" name="nama" placeholder="Nama sesuai KTP">
+      </div>
+
+      <div class="form-group">
+        <label for="nik">Nomor KTP / NIK</label>
+        <input type="number" id="nik" name="nik" placeholder="16 digit NIK" inputmode="numeric">
+      </div>
+
+      <div class="form-group">
+        <label for="whatsapp">No. WhatsApp</label>
+        <input type="tel" id="whatsapp" name="whatsapp" placeholder="08xxxxxxxxxx" inputmode="numeric">
+      </div>
+
+      <div class="form-group">
+        <label for="alamat">Alamat Lengkap</label>
+        <textarea id="alamat" name="alamat" placeholder="Nama Jalan, No. Rumah, RT/RW, Dusun/Kelurahan"></textarea>
+      </div>
+
+      <!-- Peruntukan Bangunan (Tinggal Dicentang) -->
+      <div class="form-group">
+        <label>Peruntukan Bangunan</label>
+        <div class="checkbox-grid">
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Rumah Tinggal">
+            <span>Rumah Tinggal</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Rumah Sewa">
+            <span>Rumah Sewa</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Ruko">
+            <span>Ruko</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Kantor">
+            <span>Kantor</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Asrama">
+            <span>Asrama</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Hotel">
+            <span>Hotel</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Penginapan">
+            <span>Penginapan</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Sekolah">
+            <span>Sekolah</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Rumah Sakit">
+            <span>Rumah Sakit</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" class="cb-peruntukan" value="Rumah Ibadah / Panti Asuhan">
+            <span>Rumah Ibadah / Panti Asuhan</span>
+          </label>
+          <label class="checkbox-label" style="grid-column: 1 / -1;">
+            <input type="checkbox" class="cb-peruntukan" id="cbLainnya" value="Lainnya">
+            <span>Lainnya</span>
+          </label>
+        </div>
+        <div id="peruntukanLainnyaWrapper" style="display: none; margin-top: 8px;">
+          <input type="text" id="peruntukan_lainnya" name="peruntukan_lainnya" placeholder="Tuliskan jenis peruntukan bangunan lainnya...">
+        </div>
+        <input type="hidden" id="peruntukan_bangunan" name="peruntukan_bangunan">
+      </div>
+
+      <!-- Klasifikasi Pelanggan -->
+      <div class="form-group">
+        <label for="klasifikasi_pelanggan">Klasifikasi Pelanggan</label>
+        <select id="klasifikasi_pelanggan" name="klasifikasi_pelanggan">
+          <option value="">Pilih Klasifikasi</option>
+          <option value="Sosial Umum">Sosial Umum</option>
+          <option value="Sosial Khusus">Sosial Khusus</option>
+          <option value="Rumah Tangga A">Rumah Tangga A</option>
+          <option value="Rumah Tangga B">Rumah Tangga B</option>
+          <option value="Rumah Tangga C">Rumah Tangga C</option>
+          <option value="Rumah Tangga D">Rumah Tangga D</option>
+          <option value="Instansi Pemerintah">Instansi Pemerintah</option>
+          <option value="Niaga Kecil">Niaga Kecil</option>
+          <option value="Niaga Besar">Niaga Besar</option>
+          <option value="Industri">Industri</option>
+        </select>
+      </div>
+
+      <button type="submit" id="submitBtn" class="btn-submit">
+        <span>Kirim Pendaftaran</span>
+      </button>
+
+      <div id="statusMessage" class="status-msg"></div>
+    </form>
+  </div>
+
+  <!-- Modal Popup Keterangan Berhasil -->
+  <div id="successModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <h2>Pendaftaran Berhasil!</h2>
+      <p>Data permohonan pasang baru dan titik koordinat atap rumah telah berhasil tersimpan di sistem.</p>
+      <div class="modal-note">
+        Petugas teknis kami akan memverifikasi titik lokasi dan menghubungi nomor WhatsApp pemohon untuk jadwal survei lapangan.
+      </div>
+      <button type="button" id="btnModalClose" class="btn-modal">
+        Selesai / Mengerti
+      </button>
+    </div>
+  </div>
+
+  <!-- Leaflet JS Engine -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Konfigurasi &amp; Aplikasi -->
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

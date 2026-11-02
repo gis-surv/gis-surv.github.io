@@ -1,0 +1,62 @@
+{
+  "name": "RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya",
+  "short_name": "SPAM Landorundun",
+  "description": "Sistem Informasi Geografis & Pemetaan Calon Pelanggan PERUMDAM Amerta Toraya, Kabupaten Toraja Utara",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b192c",
+  "theme_color": "#0284c7",
+  "categories": ["utilities", "productivity", "navigation"],
+  "icons": [
+    {
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Form & Peta Pelanggan",
+      "short_name": "Peta Pelanggan",
+      "description": "Input dan survei lokasi calon pelanggan baru",
+      "url": "./index.html",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Cetak Peta Topografi",
+      "short_name": "Cetak Peta",
+      "description": "Cetak layout peta skala dan jalur pipa",
+      "url": "./cetak_peta.html",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Data Teknis Pipa",
+      "short_name": "Data Pipa",
+      "description": "Laporan teknis hidrolis dan dimensi jalur pipa",
+      "url": "./cetak_pipa.html",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
+

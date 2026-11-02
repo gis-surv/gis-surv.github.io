@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rencana Pembangunan SPAM Landorundun — Data Teknis Jalur Pipa</title>
+  <!-- Konfigurasi Project & Auth Guard -->
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0284c7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="SPAM Landorundun" />
+
+  <!-- Icons & Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png" />
+
+  <!-- Open Graph (Facebook, WhatsApp, Telegram, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta property="og:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta property="og:image" content="assets/icons/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Peta Rencana Pembangunan SPAM Landorundun — PERUMDAM Amerta Toraya" />
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta name="twitter:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta name="twitter:image" content="assets/icons/og-image.png" />
+
+  <!-- PWA Helper Script -->
+  <script src="js/pwa.js" defer></script>
+
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --border: #cbd5e1;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.45;
+    }
+
+    /* Navbar */
+    .app-navbar {
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 16px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .nav-container {
+      max-width: 1300px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 54px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--primary);
+    }
+    .nav-links { display: flex; gap: 6px; }
+    .nav-item {
+      text-decoration: none;
+      padding: 7px 13px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      display: flex; align-items: center; gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .nav-item:hover { color: var(--primary); background: #f1f5f9; }
+    .nav-item.active { color: var(--primary); background: #e0f2fe; }
+
+    /* Controls Bar */
+    .controls-bar {
+      max-width: 1300px;
+      margin: 16px auto 12px;
+      padding: 0 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 7px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      display: inline-flex; align-items: center; gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: white; border-color: #cbd5e1; color: #334155; }
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* Print Paper Container (A4 Landscape) */
+    .print-wrapper {
+      max-width: 1300px;
+      margin: 0 auto 40px;
+      padding: 0 16px;
+    }
+    .paper-sheet {
+      background: white;
+      border-radius: 10px;
+      padding: 30px 36px;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+
+    /* Kop Surat Resmi */
+    .kop-surat {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      border-bottom: 3px double #0f172a;
+      padding-bottom: 14px;
+      margin-bottom: 20px;
+    }
+    .kop-logo { font-size: 44px; line-height: 1; }
+    .kop-text { flex: 1; }
+    .kop-instansi { font-size: 17px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px; text-transform: uppercase; }
+    .kop-sub { font-size: 12px; font-weight: 700; color: #0284c7; text-transform: uppercase; }
+    .kop-alamat { font-size: 10.5px; color: #64748b; margin-top: 2px; }
+
+    /* Laporan Title */
+    .report-title-box {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .report-title {
+      font-size: 15px;
+      font-weight: 900;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .report-subtitle {
+      font-size: 11.5px;
+      color: #64748b;
+      margin-top: 3px;
+    }
+
+    /* Rekap Kartu Ringkasan */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .summary-card {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+    }
+    .summary-label { font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+    .summary-value { font-size: 18px; font-weight: 900; color: var(--primary); }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 9px;
+      vertical-align: middle;
+    }
+    thead th {
+      background: #f1f5f9;
+      color: #0f172a;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.3px;
+      text-align: center;
+    }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    tbody tr:hover { background: #f0fdf4; }
+
+    .td-center { text-align: center; }
+    .td-right  { text-align: right; }
+    .td-bold   { font-weight: 700; }
+    .td-mono   { font-family: monospace; font-size: 10.5px; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9.5px;
+      font-weight: 700;
+    }
+    .badge-active  { background: #dcfce7; color: #15803d; }
+    .badge-plan    { background: #fef3c7; color: #b45309; }
+    .badge-repair  { background: #fee2e2; color: #b91c1c; }
+
+    /* Print Styles: A4 Landscape */
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 8mm;
+      }
+      *, *::before, *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      body {
+        background: white !important;
+        padding: 0 !important;
+      }
+      .no-print, .app-navbar, .controls-bar {
+        display: none !important;
+      }
+      .print-wrapper {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .paper-sheet {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+      table {
+        font-size: 9.5px !important;
+      }
+      th, td {
+        padding: 5px 6px !important;
+      }
+      thead { display: table-header-group; }
+      tr { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="app-navbar no-print">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <span>💧</span>
+        <span>PERUMDAM Amerta Toraya</span>
+      </div>
+      <div class="nav-links">
+        <a href="index.html" class="nav-item">
+          <span>📍</span> Form Pendaftaran
+        </a>
+        <a href="cetak_peta.html" class="nav-item">
+          <span>🗺️</span> Cetak Peta
+        </a>
+        <a href="cetak_data.html" class="nav-item">
+          <span>📋</span> Cetak Data Pelanggan
+        </a>
+        <a href="cetak_pipa.html" class="nav-item active">
+          <span>🔧</span> Cetak Data Pipa
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Controls Bar -->
+  <div class="controls-bar no-print">
+    <div>
+      <span style="font-size:13px;font-weight:700;color:#0f172a;">Sumber Data:</span>
+      <span style="font-size:12.5px;color:#0284c7;font-weight:600;" id="statusDataPipa">Menghubungi Sheet 3 ("Pipa")...</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-secondary" onclick="loadPipesPrintData()">
+        🔄 Muat Ulang Data
+      </button>
+      <button class="btn btn-secondary" onclick="exportPipesCSV()">
+        📥 Ekspor ke CSV
+      </button>
+      <button class="btn btn-primary" onclick="window.print()">
+        🖨️ Cetak Dokumen (PDF)
+      </button>
+    </div>
+  </div>
+
+  <!-- Print Sheet Container -->
+  <div class="print-wrapper">
+    <div class="paper-sheet">
+
+      <!-- Kop Resmi -->
+      <div class="kop-surat">
+        <div class="kop-logo">💧</div>
+        <div class="kop-text">
+          <div class="kop-instansi">PERUMDAM AMERTA TORAYA</div>
+          <div class="kop-sub">PERUSAHAAN UMUM DAERAH AIR MINUM KABUPATEN TORAJA UTARA</div>
+          <div class="kop-alamat">Bidang Perencanaan Teknis &bull; Sistem Informasi Geografis Jaringan Perpipaan &bull; Rantepao, Sulawesi Selatan</div>
+        </div>
+      </div>
+
+      <!-- Judul Laporan -->
+      <div class="report-title-box">
+        <div class="report-title">RENCANA PEMBANGUNAN SPAM LANDORUNDUN</div>
+        <div class="report-subtitle">LAPORAN TEKNIS JALUR PIPA DISTRIBUSI &amp; TRANSMISI (DATA HIDROLIS, ELEVASI &amp; DIMENSI)</div>
+      </div>
+
+      <!-- Ringkasan Rekapitulasi -->
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-label">Total Panjang Jaringan</div>
+          <div class="summary-value" id="summaryTotalPanjang">0 m</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Total Segmen Jalur</div>
+          <div class="summary-value" id="summaryTotalSegmen">0 Segmen</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Rata-rata Beda Tinggi (ΔH)</div>
+          <div class="summary-value" id="summaryRataDeltaH" style="color:#16a34a;">0 m</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Rata-rata Kemiringan (Slope)</div>
+          <div class="summary-value" id="summaryRataSlope" style="color:#0284c7;">0 %</div>
+        </div>
+      </div>
+
+      <!-- Tabel Data Pipa Lengkap -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:36px;">No</th>
+              <th rowspan="2">Nama Jalur Pipa</th>
+              <th rowspan="2">Diameter</th>
+              <th rowspan="2">Panjang</th>
+              <th colspan="2">Titik Awal Rute</th>
+              <th colspan="2">Titik Akhir Rute</th>
+              <th colspan="2">Beda Tinggi &amp; Kemiringan</th>
+            </tr>
+            <tr>
+              <th>Koordinat (Lat, Lng)</th>
+              <th>Elevasi</th>
+              <th>Koordinat (Lat, Lng)</th>
+              <th>Elevasi</th>
+              <th>ΔH (m)</th>
+              <th>Slope (%)</th>
+            </tr>
+          </thead>
+          <tbody id="tablePipesBody">
+            <tr>
+              <td colspan="10" class="td-center" style="padding:24px;color:#64748b;">
+                Memuat data jalur pipa dari spreadsheet...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /paper-sheet -->
+  </div><!-- /print-wrapper -->
+
+  <!-- Script Logika Cetak Pipa -->
+  <script>
+    let pipesData = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPipesPrintData();
+    });
+
+    // Normalisasi cerdas agar data pipa tetap rapi dan akurat meskipun kolom spreadsheet bergeser
+    function normalizePipeRow(p) {
+      if (!p) return p;
+
+      // 1. Temukan cell koordinat (string panjang yang berisi lat,lng dan semicolon ;)
+      let coordStr = '';
+      for (const [key, val] of Object.entries(p)) {
+        if (typeof val === 'string' && val.includes(';') && val.includes(',') && val.length > 20) {
+          coordStr = val.replace(/^['=]/, '').trim();
+          break;
+        }
+      }
+
+      // 2. Parse titik simpul jika koordinat ditemukan
+      let pts = [];
+      if (coordStr) {
+        const pairs = coordStr.split(/[;\n|]/).map(s => s.trim()).filter(Boolean);
+        pairs.forEach(pair => {
+          const parts = pair.split(',');
+          if (parts.length >= 2) {
+            const lt = parseFloat(parts[0].trim());
+            const ln = parseFloat(parts[1].trim());
+            if (!isNaN(lt) && !isNaN(ln)) pts.push([lt, ln]);
+          }
+        });
+      }
+
+      // 3. Tentukan titik awal & titik akhir rute yang benar
+      let startCoord = p.titik_awal || '';
+      let endCoord   = p.titik_akhir || '';
+      if (pts.length >= 2) {
+        startCoord = `${pts[0][0].toFixed(6)}, ${pts[0][1].toFixed(6)}`;
+        endCoord   = `${pts[pts.length - 1][0].toFixed(6)}, ${pts[pts.length - 1][1].toFixed(6)}`;
+      }
+
+      // 4. Periksa apakah nilai panjang, diameter, elevasi tergeser
+      let panjang   = String(p.panjang || '0').replace(/^'/, '').trim();
+      let diameter  = String(p.diameter || '').replace(/^'/, '').trim();
+      let elevAwal  = String(p.elev_awal || '').replace(/^'/, '').trim();
+      let elevAkhir = String(p.elev_akhir || '').replace(/^'/, '').trim();
+      let deltaH    = String(p.delta_h || '').replace(/^'/, '').trim();
+      let slope     = String(p.slope || '').replace(/^'/, '').trim();
+
+      // Jika elev_akhir atau elev_awal ternyata tertukar dengan string koordinat, bersihkan
+      if (elevAkhir.includes(';') || elevAkhir.length > 20) elevAkhir = '';
+      if (elevAwal.includes(';') || elevAwal.length > 20) elevAwal = '';
+
+      // Kasus: Diameter berisi angka panjang (misal 1321) dan panjang terbaca '0'
+      if ((panjang === '0' || !panjang) && parseFloat(diameter) > 40) {
+        panjang = diameter;
+        diameter = '';
+      }
+
+      // Kasus: titik_awal berisi angka elevasi (misal 789)
+      if (p.titik_awal && !p.titik_awal.includes(',') && !isNaN(parseFloat(p.titik_awal))) {
+        const num = parseFloat(p.titik_awal);
+        if (num > 100) elevAwal = num.toString();
+      }
+
+      // Kasus: elev_awal berisi delta H (misal -11)
+      if (p.elev_awal && !isNaN(parseFloat(p.elev_awal))) {
+        const num = parseFloat(p.elev_awal);
+        if (num < 100 && num > -100 && num !== 0) {
+          deltaH = num.toString();
+        }
+      }
+
+      // Kasus: titik_akhir berisi slope (misal 0.83)
+      if (p.titik_akhir && !p.titik_akhir.includes(',') && !isNaN(parseFloat(p.titik_akhir))) {
+        const num = parseFloat(p.titik_akhir);
+        if (num < 50 && num >= 0) {
+          slope = num.toString();
+        }
+      }
+
+      // Hitung elevasi akhir otomatis jika ada elevAwal dan deltaH
+      if (elevAwal && deltaH && !elevAkhir) {
+        elevAkhir = (parseFloat(elevAwal) + parseFloat(deltaH)).toFixed(1);
+      }
+
+      return {
+        ...p,
+        koordinat: coordStr || p.koordinat || '',
+        titik_awal: startCoord,
+        titik_akhir: endCoord,
+        panjang: panjang,
+        diameter: diameter,
+        elev_awal: elevAwal,
+        elev_akhir: elevAkhir,
+        delta_h: deltaH,
+        slope: slope
+      };
+    }
+
+    async function loadPipesPrintData() {
+      const statusEl = document.getElementById('statusDataPipa');
+      const tbody    = document.getElementById('tablePipesBody');
+      statusEl.textContent = 'Menghubungi Sheet 3...';
+
+      try {
+        const res  = await fetch(CONFIG.SCRIPT_URL + '?action=get_pipes');
+        const json = await res.json();
+
+        if (json.status === 'success') {
+          const raw = Array.isArray(json.pipes) ? json.pipes : [];
+          pipesData = raw.map(normalizePipeRow);
+          statusEl.textContent = `Tersambung (${pipesData.length} jalur pipa)`;
+          renderPipesTable(pipesData);
+          updateSummaryMetrics(pipesData);
+        } else {
+          statusEl.textContent = 'Gagal memuat: ' + json.message;
+          tbody.innerHTML = `<tr><td colspan="15" class="td-center" style="color:#dc2626;">Gagal memuat data dari spreadsheet: ${json.message}</td></tr>`;
+        }
+      } catch (err) {
+        statusEl.textContent = 'Koneksi gagal ke server.';
+        tbody.innerHTML = `<tr><td colspan="15" class="td-center" style="color:#dc2626;">Koneksi gagal. Pastikan URL SCRIPT_URL sudah benar dan terhubung ke internet.</td></tr>`;
+      }
+    }
+
+    function renderPipesTable(pipes) {
+      const tbody = document.getElementById('tablePipesBody');
+      if (pipes.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="10" class="td-center" style="padding:28px;color:#94a3b8;">
+              Belum ada data jalur pipa di Sheet 3. Silakan tambahkan jalur pipa melalui halaman Administrator.
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      pipes.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="td-center td-bold">${idx + 1}</td>
+          <td class="td-bold">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.warna || '#2563eb'};margin-right:5px;vertical-align:middle;"></span>
+            ${escHtml(p.nama)}
+          </td>
+          <td class="td-center td-mono">${p.diameter ? escHtml(p.diameter) + '"' : '—'}</td>
+          <td class="td-right td-mono td-bold">${formatMeters(p.panjang)}</td>
+          <td class="td-mono" style="font-size:9px;">${escHtml(p.titik_awal || '—')}</td>
+          <td class="td-center td-mono">${p.elev_awal ? p.elev_awal + ' mdpl' : '—'}</td>
+          <td class="td-mono" style="font-size:9px;">${escHtml(p.titik_akhir || '—')}</td>
+          <td class="td-center td-mono">${p.elev_akhir ? p.elev_akhir + ' mdpl' : '—'}</td>
+          <td class="td-center td-mono td-bold">${p.delta_h !== '' ? (parseFloat(p.delta_h) > 0 ? '+' : '') + p.delta_h + ' m' : '—'}</td>
+          <td class="td-center td-mono">${p.slope ? p.slope + '%' : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateSummaryMetrics(pipes) {
+      let totalPanjang = 0;
+      let totalDeltaH  = 0;
+      let totalSlope   = 0;
+      let validCount   = 0;
+
+      pipes.forEach(p => {
+        const pj = parseFloat(p.panjang);
+        if (!isNaN(pj)) totalPanjang += pj;
+        const dh = parseFloat(p.delta_h);
+        if (!isNaN(dh)) {
+          totalDeltaH += Math.abs(dh);
+          validCount++;
+        }
+        const sl = parseFloat(p.slope);
+        if (!isNaN(sl)) totalSlope += sl;
+      });
+
+      const rataDeltaH = validCount > 0 ? (totalDeltaH / validCount).toFixed(1) : '0';
+      const rataSlope  = validCount > 0 ? (totalSlope / validCount).toFixed(2) : '0';
+
+      document.getElementById('summaryTotalPanjang').textContent = formatMeters(totalPanjang);
+      document.getElementById('summaryTotalSegmen').textContent  = `${pipes.length} Segmen`;
+      document.getElementById('summaryRataDeltaH').textContent   = `${rataDeltaH} m`;
+      document.getElementById('summaryRataSlope').textContent    = `${rataSlope} %`;
+    }
+
+    function formatMeters(m) {
+      const num = parseFloat(m);
+      if (isNaN(num) || num <= 0) return '0 m';
+      if (num >= 1000) return (num / 1000).toFixed(2) + ' km';
+      return Math.round(num).toLocaleString('id-ID') + ' m';
+    }
+
+    function exportPipesCSV() {
+      if (pipesData.length === 0) {
+        alert('Tidak ada data pipa untuk diekspor!');
+        return;
+      }
+
+      let csv = 'No,Nama Jalur,Diameter (inch),Panjang (m),Titik Awal,Elevasi Awal (mdpl),Titik Akhir,Elevasi Akhir (mdpl),Beda Tinggi (m),Slope (%)\n';
+
+      pipesData.forEach((p, idx) => {
+        csv += [
+          idx + 1,
+          `"${(p.nama||'').replace(/"/g, '""')}"`,
+          `"${p.diameter||''}"`,
+          p.panjang || '0',
+          `"${p.titik_awal||''}"`,
+          p.elev_awal || '',
+          `"${p.titik_akhir||''}"`,
+          p.elev_akhir || '',
+          p.delta_h || '',
+          p.slope || ''
+        ].join(',') + '\n';
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Data_Jalur_Pipa_PERUMDAM_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+    }
+
+    function escHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,464 @@
+:root {
+  --primary: #0284c7;
+  --primary-hover: #0369a1;
+  --bg: #f8fafc;
+  --card-bg: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #cbd5e1;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  padding: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+/* Navigasi Menu Header */
+.app-navbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
+}
+.nav-container {
+  max-width: 500px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 52px;
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--primary);
+}
+.nav-links {
+  display: flex;
+  gap: 6px;
+}
+.nav-item {
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-item:hover {
+  color: var(--primary);
+  background-color: #f1f5f9;
+}
+.nav-item.active {
+  color: var(--primary);
+  background-color: #e0f2fe;
+}
+
+.app-card {
+  background: var(--card-bg);
+  max-width: 500px;
+  margin: 0 auto;
+  border-radius: 16px;
+  padding: 20px 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+}
+@media (max-width: 530px) {
+  .app-card {
+    margin: 0 12px;
+  }
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+.header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+.header p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Area Header Peta & Alat Gambar Atap */
+.map-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.draw-tools-bar {
+  display: flex;
+  gap: 6px;
+}
+.btn-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-tool:hover {
+  background: #f1f5f9;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.btn-tool.is-drawing {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.25);
+  animation: pulseTool 1.5s infinite;
+}
+@keyframes pulseTool {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+.btn-tool-finish {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+}
+.btn-tool-finish:hover {
+  background: #15803d;
+  color: #ffffff;
+}
+.btn-tool-reset {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.btn-tool-reset:hover {
+  background: #fee2e2;
+}
+
+.draw-instructions {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 7px 11px;
+  font-size: 11.5px;
+  color: #0369a1;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+/* Area Peta */
+.map-wrapper {
+  position: relative;
+  margin-bottom: 12px;
+}
+#map {
+  height: 290px;
+  width: 100%;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  z-index: 1;
+}
+
+/* Tombol Lokasi Saya (Floating) */
+.btn-floating-gps {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 999;
+  background: #ffffff;
+  color: var(--primary);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.btn-floating-gps:active {
+  transform: scale(0.96);
+  background-color: #f1f5f9;
+}
+
+/* Badge Koordinat */
+.coord-badge {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.coord-badge span {
+  font-family: monospace;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Form Fields */
+.form-group {
+  margin-bottom: 14px;
+}
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #334155;
+}
+label .required {
+  color: #ef4444;
+}
+
+input[type="text"],
+input[type="tel"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  min-height: 46px;
+  font-size: 16px; /* Mencegah auto-zoom layar HP */
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background-color: #fff;
+  color: var(--text);
+}
+textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Pilihan Checkbox Peruntukan Bangunan */
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+@media (max-width: 380px) {
+  .checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  transition: all 0.15s ease;
+  min-height: 44px;
+  line-height: 1.3;
+}
+.checkbox-label:hover {
+  border-color: var(--primary);
+  background-color: #f8fafc;
+}
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.checkbox-label.is-checked,
+.checkbox-label:has(input[type="checkbox"]:checked) {
+  background-color: #f0f9ff;
+  border-color: var(--primary);
+  color: var(--primary-hover);
+  font-weight: 600;
+}
+
+/* Tombol Kirim */
+.btn-submit {
+  width: 100%;
+  height: 48px;
+  background-color: var(--primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20px;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+.btn-submit:active {
+  background-color: var(--primary-hover);
+  transform: scale(0.99);
+}
+.btn-submit:disabled {
+  background-color: #94a3b8;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.status-msg {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  text-align: center;
+  display: none;
+  font-weight: 500;
+}
+.status-success {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+.status-error {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+/* Modal Popup Sukses */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+.modal-card {
+  background: #ffffff;
+  max-width: 420px;
+  width: 100%;
+  border-radius: 20px;
+  padding: 28px 22px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e2e8f0;
+  animation: modalScaleUp 0.25s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalScaleUp {
+  from { transform: scale(0.88); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-icon {
+  width: 68px;
+  height: 68px;
+  background: #dcfce7;
+  border: 3px solid #86efac;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.modal-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.modal-card p {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.modal-note {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.4;
+  margin-bottom: 20px;
+}
+
+.btn-modal {
+  width: 100%;
+  height: 46px;
+  background-color: var(--primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+  transition: all 0.15s ease;
+}
+.btn-modal:hover {
+  background-color: var(--primary-hover);
+}
+.btn-modal:active {
+  transform: scale(0.98);
+}
+

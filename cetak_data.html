@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rencana Pembangunan SPAM Landorundun — Data Calon Pelanggan</title>
+
+  <!-- Konfigurasi Project & Auth Guard -->
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0284c7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="SPAM Landorundun" />
+
+  <!-- Icons & Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png" />
+
+  <!-- Open Graph (Facebook, WhatsApp, Telegram, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta property="og:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta property="og:image" content="assets/icons/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Peta Rencana Pembangunan SPAM Landorundun — PERUMDAM Amerta Toraya" />
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta name="twitter:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta name="twitter:image" content="assets/icons/og-image.png" />
+
+  <!-- PWA Helper Script -->
+  <script src="js/pwa.js" defer></script>
+
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* ==========================================
+       NAVIGASI MENU
+       ========================================== */
+    .app-navbar {
+      background: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 16px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 56px;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--primary);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 6px;
+    }
+
+    .nav-item {
+      text-decoration: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-item:hover {
+      color: var(--primary);
+      background-color: #f1f5f9;
+    }
+
+    .nav-item.active {
+      color: var(--primary);
+      background-color: #e0f2fe;
+    }
+
+    /* ==========================================
+       KONTROL ATAS (HANYA LAYAR)
+       ========================================== */
+    .controls-bar {
+      max-width: 1200px;
+      margin: 20px auto 14px auto;
+      padding: 0 16px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .realtime-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: pulseAnim 2s infinite;
+    }
+
+    @keyframes pulseAnim {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.85); }
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      transition: all 0.15s ease;
+    }
+
+    .btn-refresh {
+      background: #ffffff;
+      border-color: var(--border);
+      color: var(--text);
+    }
+    .btn-refresh:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .btn-csv {
+      background: #059669;
+      color: #ffffff;
+    }
+    .btn-csv:hover {
+      background: #047857;
+    }
+
+    .btn-print {
+      background: var(--primary);
+      color: #ffffff;
+    }
+    .btn-print:hover {
+      background: var(--primary-hover);
+    }
+
+    /* ==========================================
+       FILTER PENCARIAN (HANYA LAYAR)
+       ========================================== */
+    .filter-bar {
+      max-width: 1200px;
+      margin: 0 auto 16px auto;
+      padding: 0 16px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .filter-input {
+      flex: 1;
+      min-width: 260px;
+      padding: 9px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .filter-input:focus {
+      border-color: var(--primary);
+    }
+
+    .filter-select {
+      padding: 9px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      background: #ffffff;
+      color: var(--text);
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* ==========================================
+       RINGKASAN DATA
+       ========================================== */
+    .data-summary {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .summary-card {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 12.5px;
+      color: #0369a1;
+    }
+
+    .summary-card strong {
+      color: var(--primary);
+      font-size: 17px;
+      display: block;
+    }
+
+    /* ==========================================
+       LEMBAR KERTAS CETAK
+       ========================================== */
+    .paper-container {
+      max-width: 1200px;
+      margin: 0 auto 40px auto;
+      padding: 0 16px;
+    }
+
+    .sheet-paper {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 28px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    /* Kop Laporan Resmi */
+    .report-header {
+      text-align: center;
+      padding-bottom: 14px;
+      border-bottom: 2.5px solid #0f172a;
+      margin-bottom: 16px;
+    }
+
+    .report-header h1 {
+      font-size: 16px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #0f172a;
+      letter-spacing: 0.5px;
+      line-height: 1.3;
+    }
+
+    .report-header .instansi {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0284c7;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .report-header h2 {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #64748b;
+      margin-top: 3px;
+    }
+
+    /* ==========================================
+       TABEL DATA
+       ========================================== */
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    .print-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .print-table th {
+      background: #e2e8f0;
+      color: #1e293b;
+      font-weight: 700;
+      padding: 9px 10px;
+      text-align: left;
+      border: 1px solid #cbd5e1;
+      font-size: 11.5px;
+    }
+
+    .print-table td {
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+
+    .print-table tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+
+    .print-table tr:hover td {
+      background-color: #f0f9ff;
+    }
+
+    .col-center {
+      text-align: center;
+    }
+
+    .mono {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+    }
+
+    .status-box {
+      text-align: center;
+      padding: 24px;
+      color: #64748b;
+      font-style: italic;
+    }
+
+
+    /* ==========================================
+       PRINT STYLES (CETAK DOKUMEN LAPORAN)
+       ========================================== */
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 12mm 10mm;
+      }
+
+      *, *::before, *::after {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      .no-print,
+      .app-navbar,
+      .controls-bar,
+      .filter-bar,
+      .data-summary {
+        display: none !important;
+      }
+
+      body {
+        background: #ffffff !important;
+      }
+
+      .paper-container {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      .sheet-paper {
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+
+      .report-header {
+        margin-bottom: 12px !important;
+        padding-bottom: 8px !important;
+      }
+
+      .report-header h1 {
+        font-size: 13.5px !important;
+      }
+
+      .report-header .instansi {
+        font-size: 12px !important;
+      }
+
+      .report-header h2 {
+        font-size: 10px !important;
+      }
+
+      .table-wrapper {
+        width: 100% !important;
+      }
+
+      .print-table {
+        page-break-inside: auto !important;
+        font-size: 10px !important;
+        width: 100% !important;
+      }
+
+      .print-table thead {
+        display: table-header-group !important; /* Header berulang di setiap lembar */
+      }
+
+      .print-table tr {
+        page-break-inside: avoid !important;
+        page-break-after: auto !important;
+      }
+
+      .print-table th {
+        background-color: #e2e8f0 !important;
+        font-size: 10px !important;
+        padding: 5px 7px !important;
+        border: 1px solid #94a3b8 !important;
+      }
+
+      .print-table td {
+        padding: 5px 7px !important;
+        font-size: 9.5px !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+
+      .print-table tr:nth-child(even) td {
+        background-color: #f8fafc !important;
+      }
+
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigasi Menu Header -->
+  <nav class="app-navbar no-print">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <span>💧</span>
+        <span>PERUMDAM Amerta Toraya</span>
+      </div>
+      <div class="nav-links">
+        <a href="index.html" class="nav-item">
+          <span>📍</span> Form &amp; Peta
+        </a>
+        <a href="cetak_peta.html" class="nav-item">
+          <span>🗺️</span> Cetak Peta
+        </a>
+        <a href="cetak_data.html" class="nav-item active">
+          <span>📋</span> Cetak Data Pelanggan
+        </a>
+        <a href="cetak_pipa.html" class="nav-item">
+          <span>🔧</span> Cetak Data Pipa
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Kontrol Aksi Layar -->
+  <div class="controls-bar no-print">
+    <div class="realtime-indicator">
+      <div class="pulse-dot"></div>
+      <span id="syncStatus">Menghubungi Google Spreadsheet...</span>
+    </div>
+    <div class="action-buttons">
+      <button type="button" class="btn btn-refresh" onclick="loadRealtimeData()">
+        <span>🔄</span> Muat Ulang Data
+      </button>
+      <button type="button" class="btn btn-csv" onclick="downloadCsvQgis()" title="Download file CSV koordinat untuk diimpor ke QGIS">
+        <span>📥</span> Download CSV (QGIS)
+      </button>
+      <button type="button" class="btn btn-print" onclick="window.print()">
+        <span>🖨️</span> Cetak / Simpan PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter Pencarian -->
+  <div class="filter-bar no-print">
+    <input type="text" id="searchInput" class="filter-input"
+      placeholder="🔍 Cari nama pelanggan, NIK, WhatsApp, atau alamat..."
+      oninput="filterData()">
+    <select id="filterKlasifikasi" class="filter-select" onchange="filterData()">
+      <option value="">Semua Klasifikasi</option>
+      <option value="Rumah Tangga">Rumah Tangga</option>
+      <option value="Niaga">Niaga</option>
+      <option value="Sosial">Sosial</option>
+      <option value="Instansi">Instansi</option>
+      <option value="Industri">Industri</option>
+    </select>
+  </div>
+
+  <!-- Area Cetak Tabel Laporan -->
+  <div class="paper-container">
+    <div class="sheet-paper">
+
+      <!-- Ringkasan Data (Hanya Layar) -->
+      <div class="data-summary no-print" id="dataSummary" style="display: none;">
+        <div class="summary-card">
+          <strong id="summaryTotal">0</strong> Total Calon Pelanggan
+        </div>
+        <div class="summary-card">
+          <strong id="summaryRumah">0</strong> Rumah Tangga
+        </div>
+        <div class="summary-card">
+          <strong id="summaryNiaga">0</strong> Niaga / Instansi / Sosial
+        </div>
+      </div>
+
+      <!-- Kop Laporan Resmi -->
+      <div class="report-header">
+        <h1>RENCANA PEMBANGUNAN SPAM LANDORUNDUN</h1>
+        <div class="instansi">PERUMDAM Amerta Toraya</div>
+        <h2>Data Calon Pelanggan Sambungan Baru &bull; Kabupaten Toraja Utara</h2>
+      </div>
+
+      <!-- Tabel Data -->
+      <div class="table-wrapper">
+        <table class="print-table">
+          <thead>
+            <tr>
+              <th style="width: 35px;" class="col-center">No</th>
+              <th style="width: 145px;" class="col-center">Koordinat (Lat, Lng)</th>
+              <th style="width: 160px;">Nama Lengkap</th>
+              <th style="width: 125px;" class="col-center">Nomor KTP / NIK</th>
+              <th style="width: 110px;" class="col-center">No. WhatsApp</th>
+              <th>Alamat Lengkap</th>
+              <th style="width: 130px;">Peruntukan</th>
+              <th style="width: 120px;">Klasifikasi</th>
+              <th style="width: 75px;" class="col-center">Paraf Surveyor</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr>
+              <td colspan="9" class="status-box">Sedang memuat data dari Google Spreadsheet...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+
+    </div>
+  </div>
+
+  <!-- Inisialisasi Script Laporan -->
+  <script>
+    let allData = [];
+
+    /* ------------------------------------------------------------
+       Pengambilan Data Realtime dari Google Apps Script
+    ------------------------------------------------------------ */
+    function loadRealtimeData() {
+      const syncStatus = document.getElementById('syncStatus');
+      const tbody = document.getElementById('tableBody');
+
+      syncStatus.innerText = "Menghubungi Google Spreadsheet...";
+      tbody.innerHTML = `<tr><td colspan="9" class="status-box">Sedang menyinkronkan data realtime...</td></tr>`;
+
+      const scriptUrl = CONFIG.SCRIPT_URL;
+
+      if (!scriptUrl || scriptUrl.includes("ISI_DENGAN_GOOGLE")) {
+        tbody.innerHTML = `<tr><td colspan="9" class="status-box" style="color:#ef4444;">URL Google Apps Script belum disetel di js/config.js</td></tr>`;
+        syncStatus.innerText = "URL Apps Script belum disetel";
+        return;
+      }
+
+      fetch(scriptUrl)
+        .then(res => {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        })
+        .then(res => {
+          const rows = Array.isArray(res) ? res :
+                       (res.status === 'success' && Array.isArray(res.data)) ? res.data :
+                       (Array.isArray(res.data) ? res.data : []);
+
+          allData = rows;
+          renderTable(allData);
+          updateSummary(allData);
+          syncStatus.innerText = `Tersambung ke Google Spreadsheet (${allData.length} data realtime)`;
+        })
+        .catch(err => {
+          console.warn("Gagal memuat data dari Spreadsheet:", err);
+          syncStatus.innerText = "Gagal terhubung ke Google Spreadsheet";
+          if (allData.length === 0) {
+            renderTable([]);
+          }
+        });
+    }
+
+    /* ------------------------------------------------------------
+       Normalisasi & Sanitasi Koordinat GPS (Perbaiki Titik Hilang)
+    ------------------------------------------------------------ */
+    function sanitizeCoordinate(val, type) {
+      if (val === null || val === undefined || val === '') return '';
+      let clean = String(val).replace(/^'/, '').trim().replace(',', '.');
+      let num = parseFloat(clean);
+      if (isNaN(num)) return clean;
+
+      // Jika berupa integer besar tanpa desimal karena tanda titik terhapus oleh spreadsheet (locale Indonesia)
+      // Input form menggunakan .toFixed(6), sehingga nilainya tergeser 10^6
+      if (!clean.includes('.') && Math.abs(num) > 1000) {
+        num = num / 1000000;
+      }
+      return num.toFixed(6);
+    }
+
+    /* ------------------------------------------------------------
+       Render Baris Tabel Data
+    ------------------------------------------------------------ */
+    function renderTable(data) {
+      const tbody = document.getElementById('tableBody');
+
+      if (!data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="status-box">Belum ada data pendaftaran yang tercatat di Google Spreadsheet.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = '';
+      data.forEach((row, index) => {
+        const noUrut = row.no || (index + 1);
+        const rawLat = row.latitude !== undefined ? row.latitude : (row.lat || '');
+        const rawLng = row.longitude !== undefined ? row.longitude : (row.lng || '');
+        const lat = sanitizeCoordinate(rawLat, 'lat') || '-';
+        const lng = sanitizeCoordinate(rawLng, 'lng') || '-';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="col-center"><strong>${noUrut}</strong></td>
+          <td class="mono col-center">${lat}, ${lng}</td>
+          <td><strong>${escapeHtml(row.nama || '-')}</strong></td>
+          <td class="mono col-center">${escapeHtml(row.nik || '-')}</td>
+          <td class="mono col-center">${escapeHtml(row.whatsapp || '-')}</td>
+          <td>${escapeHtml(row.alamat || '-')}</td>
+          <td>${escapeHtml(row.peruntukan || '-')}</td>
+          <td>${escapeHtml(row.klasifikasi || '-')}</td>
+          <td class="col-center" style="color:#cbd5e1;">______</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* ------------------------------------------------------------
+       Update Kartu Ringkasan Data
+    ------------------------------------------------------------ */
+    function updateSummary(data) {
+      const total = data.length;
+      const rumah = data.filter(d => d.klasifikasi && d.klasifikasi.toLowerCase().includes('rumah')).length;
+      const lainnya = total - rumah;
+
+      document.getElementById('summaryTotal').innerText = total;
+      document.getElementById('summaryRumah').innerText = rumah;
+      document.getElementById('summaryNiaga').innerText = lainnya;
+
+      const summaryEl = document.getElementById('dataSummary');
+      if (summaryEl) summaryEl.style.display = 'flex';
+    }
+
+    /* ------------------------------------------------------------
+       Filter Pencarian & Klasifikasi
+    ------------------------------------------------------------ */
+    function filterData() {
+      const query = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+      const klasifikasi = (document.getElementById('filterKlasifikasi').value || '').toLowerCase();
+
+      const filtered = allData.filter(item => {
+        const matchQuery = !query ||
+          (item.nama && item.nama.toLowerCase().includes(query)) ||
+          (item.nik && item.nik.toLowerCase().includes(query)) ||
+          (item.whatsapp && item.whatsapp.toLowerCase().includes(query)) ||
+          (item.alamat && item.alamat.toLowerCase().includes(query));
+
+        const matchKlasifikasi = !klasifikasi ||
+          (item.klasifikasi && item.klasifikasi.toLowerCase().includes(klasifikasi));
+
+        return matchQuery && matchKlasifikasi;
+      });
+
+      renderTable(filtered);
+    }
+
+    /* ------------------------------------------------------------
+       Download CSV Standar untuk QGIS (EPSG:4326 WGS 84)
+    ------------------------------------------------------------ */
+    function downloadCsvQgis() {
+      if (!allData || allData.length === 0) {
+        alert("Belum ada data pendaftaran yang dapat diunduh.");
+        return;
+      }
+
+      // Header kolom: Latitude & Longitude otomatis dikenali sebagai Y & X oleh QGIS
+      const headers = [
+        "No",
+        "Latitude",
+        "Longitude",
+        "Nama_Lengkap",
+        "NIK",
+        "No_WhatsApp",
+        "Alamat",
+        "Peruntukan",
+        "Klasifikasi"
+      ];
+
+      const csvRows = [headers.join(",")];
+
+      allData.forEach((row, index) => {
+        const noUrut = row.no || (index + 1);
+        const rawLat = row.latitude !== undefined ? row.latitude : (row.lat || '');
+        const rawLng = row.longitude !== undefined ? row.longitude : (row.lng || '');
+        const lat = sanitizeCoordinate(rawLat, 'lat');
+        const lng = sanitizeCoordinate(rawLng, 'lng');
+
+        const values = [
+          noUrut,
+          lat,
+          lng,
+          escapeCsvValue(row.nama || ''),
+          escapeCsvValue(row.nik || ''),
+          escapeCsvValue(row.whatsapp || ''),
+          escapeCsvValue(row.alamat || ''),
+          escapeCsvValue(row.peruntukan || ''),
+          escapeCsvValue(row.klasifikasi || '')
+        ];
+
+        csvRows.push(values.join(","));
+      });
+
+      // Tambahkan BOM UTF-8 (\uFEFF) agar terbaca sempurna di QGIS & Excel Windows
+      const csvString = "\uFEFF" + csvRows.join("\r\n");
+      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10);
+      const filename = `data_pelanggan_qgis_${dateStr}.csv`;
+
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function escapeCsvValue(val) {
+      const str = String(val).replace(/"/g, '""');
+      if (str.includes(",") || str.includes("\n") || str.includes("\r") || str.includes('"')) {
+        return `"${str}"`;
+      }
+      return str;
+    }
+
+    /* ------------------------------------------------------------
+       Sanitasi HTML sederhana untuk keamanan
+    ------------------------------------------------------------ */
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /* ------------------------------------------------------------
+       Inisialisasi Halaman
+    ------------------------------------------------------------ */
+    document.addEventListener('DOMContentLoaded', () => {
+      loadRealtimeData();
+    });
+  </script>
+
+</body>
+</html>

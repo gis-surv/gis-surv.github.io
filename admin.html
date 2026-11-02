@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel — Rencana Pembangunan SPAM Landorundun</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <!-- Custom Admin CSS -->
+  <link rel="stylesheet" href="css/admin.css" />
+
+  <!-- Leaflet JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <!-- Config & Auth Guard -->
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0284c7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="SPAM Landorundun" />
+
+  <!-- Icons & Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png" />
+
+  <!-- Open Graph (Facebook, WhatsApp, Telegram, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta property="og:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta property="og:image" content="assets/icons/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Peta Rencana Pembangunan SPAM Landorundun — PERUMDAM Amerta Toraya" />
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta name="twitter:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
+  <meta name="twitter:image" content="assets/icons/og-image.png" />
+
+  <!-- PWA Helper Script -->
+  <script src="js/pwa.js" defer></script>
+</head>
+<body>
+
+  <!-- ===================== LOGIN SCREEN ===================== -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <div class="login-logo">
+        <span class="logo-icon">💧</span>
+        <div class="logo-title">RENCANA PEMBANGUNAN SPAM LANDORUNDUN</div>
+        <div class="logo-sub">PERUMDAM Amerta Toraya &bull; Panel Manajemen GIS</div>
+      </div>
+      <div class="login-heading">🔐 Panel Administrator</div>
+      <form id="loginForm" onsubmit="doLogin(event)">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="inputUser" placeholder="Masukkan username" autocomplete="username" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="inputPass" placeholder="Masukkan password" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn-login" id="btnLogin">Masuk ke Panel Admin</button>
+      </form>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+
+  <!-- ===================== ADMIN PANEL ===================== -->
+  <div id="adminPanel">
+
+    <!-- Topbar -->
+    <div class="admin-topbar">
+      <div class="topbar-brand">
+        <span class="brand-badge">ADMIN</span>
+        <span class="brand-name">💧 Rencana Pembangunan SPAM Landorundun — Panel Manajemen</span>
+      </div>
+      <div class="topbar-right">
+        <a href="cetak_peta.html" style="text-decoration:none;font-size:12px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;padding:5px 10px;border-radius:6px;">🗺️ Cetak Peta</a>
+        <a href="cetak_data.html" style="text-decoration:none;font-size:12px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;padding:5px 10px;border-radius:6px;">📋 Data Pelanggan</a>
+        <a href="cetak_pipa.html" style="text-decoration:none;font-size:12px;font-weight:600;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;padding:5px 10px;border-radius:6px;">🔧 Data Pipa</a>
+        <div class="topbar-user">Login sebagai <span id="loggedUser">admin</span></div>
+        <button class="btn-logout" onclick="doAuthLogout()">⎋ Keluar</button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="admin-content">
+
+      <!-- Navigation Tabs -->
+      <div class="tab-nav">
+        <button class="tab-btn active" id="tabBtnCustomers" onclick="switchTab('customers')">
+          <span style="font-size:16px;">👥</span>
+          <span>1. Data Pelanggan (Titik &amp; Arsiran Atap)</span>
+        </button>
+        <button class="tab-btn" id="tabBtnPipes" onclick="switchTab('pipes')">
+          <span style="font-size:16px;">🔧</span>
+          <span>2. Gambar Jalur Pipa (Garis Distribusi)</span>
+          <span style="background:#2563eb;color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:4px;">Garis Pipa</span>
+        </button>
+      </div>
+
+      <!-- ==================== TAB 1: PELANGGAN ==================== -->
+      <div id="sectionCustomers">
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">Total Pelanggan</div>
+            <div class="stat-value" id="statTotal">—</div>
+            <div class="stat-sub">Data terdaftar</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Dengan Arsiran Atap</div>
+            <div class="stat-value" id="statPolygon">—</div>
+            <div class="stat-sub">Poligon atap bangunan</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Titik Tunggal</div>
+            <div class="stat-value" id="statPoint">—</div>
+            <div class="stat-sub">Marker koordinat GPS</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Hasil Pencarian</div>
+            <div class="stat-value" id="statFiltered">—</div>
+            <div class="stat-sub">Data tampil saat ini</div>
+          </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="table-toolbar">
+          <input type="text" class="search-input" id="searchInput"
+            placeholder="🔍  Cari nama, NIK, alamat, WA, klasifikasi..."
+            oninput="filterTable()" />
+          <button class="btn btn-secondary" onclick="loadAdminData()">🔄 Muat Ulang</button>
+        </div>
+
+        <!-- Table Card -->
+        <div class="table-card">
+          <div class="table-responsive">
+            <div id="tableLoading" class="loading-overlay">
+              <span class="spinner"></span> Memuat data dari Google Spreadsheet...
+            </div>
+            <div id="tableContainer" style="display:none;">
+              <table id="dataTable">
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th>Nama Lengkap</th>
+                    <th>NIK</th>
+                    <th>No. WhatsApp</th>
+                    <th>Alamat</th>
+                    <th>Peruntukan</th>
+                    <th>Klasifikasi</th>
+                    <th>Mode</th>
+                    <th>Lat, Lng</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+              <div id="emptyState" class="empty-state" style="display:none;">
+                <div class="empty-icon">📭</div>
+                <div class="empty-text">Tidak ada data yang cocok dengan pencarian</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 2: JALUR PIPA ==================== -->
+      <div id="sectionPipes" style="display:none;">
+        <div class="pipe-container">
+
+          <!-- Sidebar Kiri: Daftar Pipa -->
+          <div class="pipe-sidebar">
+            <div class="pipe-sidebar-header">
+              <div>
+                <h3>Daftar Jalur (<span id="pipeCountBadge">0</span>)</h3>
+              </div>
+              <div style="display:flex;gap:4px;">
+                <a href="cetak_pipa.html" target="_blank" class="btn btn-secondary" style="padding:6px 10px;font-size:11px;text-decoration:none;" title="Buka Halaman Cetak Tabel Data Jalur Pipa">
+                  🖨️ Cetak
+                </a>
+                <button class="btn btn-primary" style="padding:6px 11px;font-size:11px;" onclick="startDrawingPipe()">
+                  + Gambar Baru
+                </button>
+              </div>
+            </div>
+            <div class="pipe-list-scroll" id="pipeListScroll">
+              <!-- Diisi dinamis oleh admin.js -->
+            </div>
+          </div>
+
+          <!-- Kolom Kanan: Peta Jalur Pipa -->
+          <div class="pipe-map-col">
+
+            <!-- Banner Petunjuk Gambar Pipa -->
+            <div style="background:#f0fdf4;padding:8px 14px;border-bottom:1.5px solid #bbf7d0;font-size:11.5px;color:#166534;display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span>💡</span>
+                <span><strong>Panduan Gambar Garis Pipa:</strong> Klik <em>"+ Gambar Baru"</em> di sebelah kiri, lalu klik rute pipa di peta titik demi titik. Garis pipa akan terhubung otomatis tanpa form pelanggan.</span>
+              </div>
+              <button class="btn btn-primary" style="padding:4px 10px;font-size:11px;background:#16a34a;" onclick="startDrawingPipe()">
+                ✏️ Mulai Gambar Garis Pipa
+              </button>
+            </div>
+
+            <!-- Drawing Toolbar / Panel (Muncul saat mode gambar) -->
+            <div class="pipe-drawing-panel" id="pipeDrawingPanel">
+              <div class="drawing-grid" style="grid-template-columns: 2fr 1fr auto; align-items: end;">
+                <div>
+                  <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px;color:#78350f;">Nama Jalur Pipa</label>
+                  <input type="text" id="drawPipeName" placeholder="Contoh: Pipa Sesean - Suloara" style="width:100%;" />
+                </div>
+                <div>
+                  <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px;color:#78350f;">Diameter (inch)</label>
+                  <input type="text" id="drawPipeDiameter" placeholder="misal: 2 / 3 / 4 / 6" style="width:100%;" />
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;padding-bottom:2px;">
+                  <label style="font-size:11px;font-weight:700;color:#78350f;">Warna Garis:</label>
+                  <input type="color" id="drawPipeColor" value="#2563eb" style="width:38px;height:32px;border:none;cursor:pointer;background:transparent;" />
+                </div>
+              </div>
+
+              <!-- Kartu Metrik Otomatis: Panjang, Elevasi Awal, Elevasi Akhir, Beda Tinggi, Slope -->
+              <div class="pipe-auto-metrics">
+                <div class="metric-box">
+                  <label>📏 Panjang Jalur</label>
+                  <div class="metric-val" id="metricLength">0 m</div>
+                </div>
+                <div class="metric-box">
+                  <label>⛰️ Elevasi Awal</label>
+                  <div class="metric-val" id="metricElevStart">— mdpl</div>
+                </div>
+                <div class="metric-box">
+                  <label>⛰️ Elevasi Akhir</label>
+                  <div class="metric-val" id="metricElevEnd">— mdpl</div>
+                </div>
+                <div class="metric-box">
+                  <label>📐 Beda Tinggi (ΔH)</label>
+                  <div class="metric-val" id="metricDeltaH">— m</div>
+                </div>
+                <div class="metric-box">
+                  <label>📉 Kemiringan (Slope)</label>
+                  <div class="metric-val" id="metricSlope">— %</div>
+                </div>
+              </div>
+
+              <!-- Hidden input nilai teknis otomatis -->
+              <input type="hidden" id="drawPipeElevStart" value="" />
+              <input type="hidden" id="drawPipeElevEnd" value="" />
+              <input type="hidden" id="drawPipeDeltaH" value="" />
+              <input type="hidden" id="drawPipeSlope" value="" />
+              <input type="hidden" id="drawPipeStartCoord" value="" />
+              <input type="hidden" id="drawPipeEndCoord" value="" />
+
+              <div class="drawing-buttons">
+                <button class="btn btn-secondary" style="padding:6px 12px;font-size:11.5px;" onclick="undoLastPipePoint()">
+                  ↩️ Hapus Titik Terakhir
+                </button>
+                <button class="btn btn-primary" id="btnSavePipe" style="padding:6px 16px;font-size:11.5px;background:#16a34a;" onclick="savePipe()">
+                  ✅ Selesai &amp; Simpan ke Sheet 3
+                </button>
+                <button class="btn btn-secondary" style="padding:6px 12px;font-size:11.5px;border-color:#fca5a5;color:#dc2626;" onclick="cancelDrawingPipe()">
+                  ✖️ Batal
+                </button>
+              </div>
+            </div>
+
+            <!-- Toolbar Layer Peta -->
+            <div class="pipe-map-toolbar">
+              <div style="display:flex;gap:4px;">
+                <button class="layer-btn active" id="pipeLayerSat" onclick="switchPipeLayer('satellite')">🛰️ Satelit</button>
+                <button class="layer-btn" id="pipeLayerRoad" onclick="switchPipeLayer('roadmap')">🏢 Jalan</button>
+                <button class="layer-btn" id="pipeLayerTopo" onclick="switchPipeLayer('terrain')">⛰️ Kontur</button>
+              </div>
+              <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="loadPipes()">
+                🔄 Refresh Jalur Pipa
+              </button>
+            </div>
+
+            <!-- Wadah Peta Leaflet Pipa -->
+            <div id="pipeMap"></div>
+
+            <!-- Status Bar -->
+            <div class="pipe-status-bar" id="pipeStatusBar">
+              <span class="status-dot dot-idle"></span>
+              <span>Siap. Klik "+ Gambar Jalur Baru" untuk mendigitasi pipa di atas peta.</span>
+            </div>
+
+          </div><!-- /pipe-map-col -->
+        </div><!-- /pipe-container -->
+      </div><!-- /sectionPipes -->
+
+    </div><!-- /admin-content -->
+  </div><!-- /adminPanel -->
+
+  <!-- ===================== MODAL EDIT PELANGGAN ===================== -->
+  <div class="modal-overlay" id="editModal" onclick="closeEditModalOutside(event)">
+    <div class="modal-box">
+
+      <div class="modal-header">
+        <div class="modal-title">✏️ Edit Data Pelanggan — <span id="modalTitle"></span></div>
+        <button class="modal-close" onclick="closeEditModal()">×</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Form Kiri -->
+        <div class="modal-form-col">
+          <input type="hidden" id="editRowIndex" />
+
+          <div class="modal-field">
+            <label>Nama Lengkap</label>
+            <input type="text" id="editNama" placeholder="Nama lengkap pelanggan" />
+          </div>
+
+          <div class="modal-field">
+            <label>NIK / Nomor KTP</label>
+            <input type="text" id="editNik" placeholder="16 digit NIK" maxlength="20" />
+          </div>
+
+          <div class="modal-field">
+            <label>No. WhatsApp</label>
+            <input type="text" id="editWa" placeholder="08xxxxxxxxxx" />
+          </div>
+
+          <div class="modal-field">
+            <label>Alamat Lengkap</label>
+            <input type="text" id="editAlamat" placeholder="Alamat rumah" />
+          </div>
+
+          <div class="modal-field">
+            <label>Peruntukan Bangunan</label>
+            <select id="editPeruntukan">
+              <option value="">-- Pilih --</option>
+              <option>Rumah Tinggal</option>
+              <option>Ruko / Toko</option>
+              <option>Kantor</option>
+              <option>Sekolah / Kampus</option>
+              <option>Rumah Sakit / Klinik</option>
+              <option>Hotel / Penginapan</option>
+              <option>Lainnya</option>
+            </select>
+          </div>
+
+          <div class="modal-field">
+            <label>Klasifikasi Pelanggan</label>
+            <select id="editKlasifikasi">
+              <option value="">-- Pilih --</option>
+              <option>Rumah Tangga Sederhana</option>
+              <option>Rumah Tangga Menengah</option>
+              <option>Komersial Kecil</option>
+              <option>Komersial Menengah</option>
+              <option>Instansi Pemerintah</option>
+              <option>Sosial</option>
+            </select>
+          </div>
+
+          <!-- Koordinat -->
+          <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:4px;">
+            <div style="font-size:10.5px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">
+              📍 Koordinat (diisi dari peta)
+            </div>
+            <div class="coord-row">
+              <div class="modal-field">
+                <label>Latitude</label>
+                <input type="text" id="editLat" placeholder="-2.973456" readonly
+                  style="background:#f1f5f9;font-family:monospace;font-size:12px;" />
+              </div>
+              <div class="modal-field">
+                <label>Longitude</label>
+                <input type="text" id="editLng" placeholder="119.895123" readonly
+                  style="background:#f1f5f9;font-family:monospace;font-size:12px;" />
+              </div>
+            </div>
+            <div class="modal-field" style="margin-top:10px;">
+              <label>Koordinat Poligon Atap</label>
+              <textarea id="editPolygon" readonly placeholder="Kosong = titik tunggal&#10;Klik ✏️ Gambar Poligon lalu tandai sudut atap"
+                style="background:#f1f5f9;font-size:10.5px;min-height:54px;"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Peta Kanan -->
+        <div class="modal-map-col">
+          <div style="background:#eff6ff;padding:8px 12px;font-size:11px;color:#1e40af;border-bottom:1px solid #bfdbfe;display:flex;align-items:center;gap:6px;">
+            <span>ℹ️</span>
+            <span>Khusus penentuan <strong>lokasi rumah pelanggan</strong> (titik/arsiran atap). Untuk menggambar <strong>garis pipa</strong>, buka tab <em>"2. Gambar Jalur Pipa"</em> di menu atas.</span>
+          </div>
+          <div class="map-edit-toolbar">
+            <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-right:4px;">Mode Penandaan Rumah:</span>
+            <button class="map-mode-btn active-point" id="btnModePoint" onclick="setEditMapMode('point')">
+              📍 Titik Rumah
+            </button>
+            <button class="map-mode-btn" id="btnModePolygon" onclick="setEditMapMode('polygon')">
+              🏠 Arsiran Atap Rumah
+            </button>
+            <button class="btn-finish-poly" id="btnFinishPoly" onclick="finishEditPolygon()">
+              ✅ Selesai Arsiran
+            </button>
+            <button class="btn-clear-map" onclick="clearEditMapAll()">
+              🗑️ Hapus Penandaan
+            </button>
+          </div>
+
+          <div class="map-layer-switch">
+            <button class="layer-btn active" id="layerBtnSat" onclick="switchEditLayer('satellite')">🛰️ Satelit</button>
+            <button class="layer-btn" id="layerBtnRoad" onclick="switchEditLayer('roadmap')">🏢 Jalan</button>
+            <button class="layer-btn" id="layerBtnTopo" onclick="switchEditLayer('terrain')">⛰️ Kontur</button>
+          </div>
+
+          <div id="editMap"></div>
+
+          <div class="map-status-bar" id="mapStatusBar">
+            <span class="status-dot dot-idle" id="statusDot"></span>
+            <span id="statusText">Klik peta untuk menandai lokasi</span>
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeEditModal()">Batal</button>
+        <button class="btn-save" id="btnSave" onclick="saveCustomerEdit()">💾 Simpan Perubahan</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast"></div>
+
+  <!-- Admin Application Logic -->
+  <script src="js/admin.js"></script>
+</body>
+</html>
