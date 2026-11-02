@@ -1275,9 +1275,10 @@ async function executeMapLocationSearch(query) {
   }
 
   // 2. Pencarian Jalur Pipa lokal
-  if (Array.isArray(allPipes)) {
+  const pipeList = typeof allPipes !== 'undefined' && Array.isArray(allPipes) ? allPipes : [];
+  if (pipeList.length > 0) {
     const qLower = query.toLowerCase();
-    allPipes.forEach(pipe => {
+    pipeList.forEach(pipe => {
       if (pipe.nama && pipe.nama.toLowerCase().includes(qLower)) {
         const coords = parsePolyStr(pipe.koordinat);
         if (coords.length > 0) {
@@ -1298,10 +1299,11 @@ async function executeMapLocationSearch(query) {
   }
 
   // 3. Pencarian Pelanggan lokal
-  if (Array.isArray(allData)) {
+  const customerList = typeof allRows !== 'undefined' && Array.isArray(allRows) ? allRows : (typeof allData !== 'undefined' && Array.isArray(allData) ? allData : []);
+  if (customerList.length > 0) {
     const qLower = query.toLowerCase();
     let matchCustCount = 0;
-    for (let c of allData) {
+    for (let c of customerList) {
       if (matchCustCount >= 4) break;
       const matchName = (c.nama || '').toLowerCase().includes(qLower);
       const matchAddr = (c.alamat || '').toLowerCase().includes(qLower);
@@ -1327,26 +1329,36 @@ async function executeMapLocationSearch(query) {
 
   // 4. Pencarian Geocoding Nama Lokasi / Desa / Landmark Online via OpenStreetMap Nominatim
   try {
-    // Prioritaskan wilayah Toraja Utara / Sulawesi Selatan
     const viewbox = '119.5,-3.4,120.3,-2.6';
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=id&viewbox=${viewbox}&bounded=0&limit=6&addressdetails=1`;
+    const cleanSearch = query.trim();
+    const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanSearch)}&countrycodes=id&viewbox=${viewbox}&bounded=0&limit=8&addressdetails=1`;
     const res = await fetch(nominatimUrl, { headers: { 'Accept': 'application/json' } });
     if (res.ok) {
-      const places = await res.json();
+      let places = await res.json();
+
+      // Jika tidak ada hasil dan kata kunci memiliki tanda petik (misal: "To' Langi"), coba cari tanpa petik ("To Langi")
+      if ((!Array.isArray(places) || places.length === 0) && cleanSearch.includes("'")) {
+        const fallbackSearch = cleanSearch.replace(/'/g, ' ');
+        const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fallbackSearch)}&countrycodes=id&viewbox=${viewbox}&bounded=0&limit=8&addressdetails=1`;
+        const res2 = await fetch(fallbackUrl, { headers: { 'Accept': 'application/json' } });
+        if (res2.ok) places = await res2.json();
+      }
+
       if (Array.isArray(places)) {
         places.forEach(item => {
           const lat = parseFloat(item.lat);
           const lng = parseFloat(item.lon);
           if (!isNaN(lat) && !isNaN(lng)) {
             let icon = '📍';
-            const cat = (item.type || '') + ' ' + (item.class || '');
-            if (cat.includes('school') || cat.includes('college')) icon = '🏫';
-            else if (cat.includes('worship') || cat.includes('church') || cat.includes('mosque')) icon = '⛪';
-            else if (cat.includes('market') || cat.includes('shop')) icon = '🛒';
-            else if (cat.includes('village') || cat.includes('hamlet') || cat.includes('town')) icon = '🏘️';
-            else if (cat.includes('hospital') || cat.includes('clinic')) icon = '🏥';
-            else if (cat.includes('peak') || cat.includes('mountain') || cat.includes('natural')) icon = '⛰️';
-            else if (cat.includes('highway') || cat.includes('road')) icon = '🛣️';
+            const cat = ((item.type || '') + ' ' + (item.class || '') + ' ' + (item.display_name || '')).toLowerCase();
+            if (cat.includes('school') || cat.includes('sekolah') || cat.includes('smp') || cat.includes('sma') || cat.includes('sd')) icon = '🏫';
+            else if (cat.includes('church') || cat.includes('gereja') || cat.includes('mosque') || cat.includes('masjid')) icon = '⛪';
+            else if (cat.includes('cemetery') || cat.includes('grave') || cat.includes('kuburan') || cat.includes('makam')) icon = '🪦';
+            else if (cat.includes('market') || cat.includes('pasar') || cat.includes('shop') || cat.includes('toko')) icon = '🛒';
+            else if (cat.includes('village') || cat.includes('desa') || cat.includes('kelurahan') || cat.includes('hamlet')) icon = '🏘️';
+            else if (cat.includes('hospital') || cat.includes('rumah sakit') || cat.includes('puskesmas') || cat.includes('klinik')) icon = '🏥';
+            else if (cat.includes('peak') || cat.includes('mountain') || cat.includes('gunung') || cat.includes('buntu')) icon = '⛰️';
+            else if (cat.includes('highway') || cat.includes('road') || cat.includes('jalan')) icon = '🛣️';
 
             const nameParts = (item.display_name || '').split(',');
             const titleName = nameParts[0] ? nameParts[0].trim() : query;
