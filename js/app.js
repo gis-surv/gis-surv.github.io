@@ -370,6 +370,58 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // ==========================================
+  // MANAJEMEN IDENTITAS PETUGAS / SUMBER DATA
+  // ==========================================
+  const displayPetugasEl = document.getElementById('displayPetugasNama');
+  const inputSumberData  = document.getElementById('sumber_data');
+  const btnUbahPetugas   = document.getElementById('btnUbahPetugas');
+  let activePetugasName  = '';
+
+  function initSurveyorIdentity() {
+    let session = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+    let savedName = localStorage.getItem('saved_petugas_nama') || '';
+    activePetugasName = (session && session.petugas_nama) ? session.petugas_nama : savedName;
+
+    // Jika belum ada nama dan yang login adalah surveyor
+    if (!activePetugasName && session && session.role === 'survey') {
+      const input = prompt("Silakan masukkan Nama Lengkap Anda sebagai Petugas Surveyor:", "");
+      if (input && input.trim()) {
+        activePetugasName = input.trim();
+        session.petugas_nama = activePetugasName;
+        if (typeof setAuthSession === 'function') setAuthSession(session);
+        localStorage.setItem('saved_petugas_nama', activePetugasName);
+      }
+    }
+
+    if (!activePetugasName) {
+      activePetugasName = (session && session.username) ? ('Petugas ' + session.username) : 'Petugas Surveyor';
+    }
+
+    if (displayPetugasEl) displayPetugasEl.textContent = activePetugasName;
+    if (inputSumberData)  inputSumberData.value = activePetugasName;
+  }
+
+  if (btnUbahPetugas) {
+    btnUbahPetugas.addEventListener('click', function () {
+      const baru = prompt("Ubah Nama Lengkap Petugas Surveyor / Sumber Data:", activePetugasName);
+      if (baru !== null && baru.trim() !== '') {
+        activePetugasName = baru.trim();
+        if (displayPetugasEl) displayPetugasEl.textContent = activePetugasName;
+        if (inputSumberData)  inputSumberData.value = activePetugasName;
+        localStorage.setItem('saved_petugas_nama', activePetugasName);
+
+        let session = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+        if (session) {
+          session.petugas_nama = activePetugasName;
+          if (typeof setAuthSession === 'function') setAuthSession(session);
+        }
+      }
+    });
+  }
+
+  initSurveyorIdentity();
+
+  // ==========================================
   // PENGIRIMAN DATA FORMULIR KE BACKEND
   // ==========================================
   const successModal = document.getElementById('successModal');
@@ -414,6 +466,8 @@ document.addEventListener('DOMContentLoaded', function () {
     statusMsg.style.display = "none";
 
     const formData = new FormData(form);
+    // Pastikan sumber data / nama petugas selalu terisi
+    formData.set('sumber_data', activePetugasName || (inputSumberData ? inputSumberData.value : 'Surveyor'));
 
     fetch(scriptUrl, {
       method: 'POST',
@@ -432,6 +486,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (res.status === 'success') {
         showSuccessModal();
         form.reset();
+        if (inputSumberData) inputSumberData.value = activePetugasName;
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         throw new Error(res.message || "Gagal menyimpan data");
@@ -445,6 +500,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (err.message && (err.message.includes("Failed to fetch") || err.message.includes("NetworkError") || err.message.includes("Load failed"))) {
         showSuccessModal();
         form.reset();
+        if (inputSumberData) inputSumberData.value = activePetugasName;
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         statusMsg.className = "status-msg status-error";

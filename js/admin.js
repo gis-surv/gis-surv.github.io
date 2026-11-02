@@ -184,7 +184,10 @@ function renderCustomerTable(rows) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-no">${row.no}</td>
-      <td class="td-nama td-truncate" title="${escHtml(row.nama)}">${escHtml(row.nama)||'—'}</td>
+      <td class="td-nama td-truncate" title="${escHtml(row.nama)}">
+        <strong>${escHtml(row.nama)||'—'}</strong>
+        ${row.sumber ? `<div style="font-size:10px;color:#0284c7;font-weight:600;margin-top:2px;" title="Sumber Data / Petugas">📋 ${escHtml(row.sumber)}</div>` : ''}
+      </td>
       <td class="td-truncate" style="font-family:monospace;font-size:11px">${escHtml(row.nik)||'—'}</td>
       <td class="td-truncate">${escHtml(row.whatsapp)||'—'}</td>
       <td class="td-truncate" title="${escHtml(row.alamat)}">${escHtml(row.alamat)||'—'}</td>

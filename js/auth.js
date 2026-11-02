@@ -74,9 +74,10 @@ function doAuthLogout() {
  * Verifikasi kredensial login langsung ke Google Apps Script (Sheet "Admin")
  * Password TIDAK disimpan di frontend browser
  */
-async function authenticateUser(username, password) {
+async function authenticateUser(username, password, petugasNama) {
   const user = String(username || '').trim().toLowerCase();
   const pass = String(password || '').trim();
+  const namaPetugas = String(petugasNama || '').trim();
 
   if (!user || !pass) {
     return { success: false, message: 'Username dan password wajib diisi.' };
@@ -102,11 +103,19 @@ async function authenticateUser(username, password) {
       const role = (json.role || 'public').toLowerCase();
       const roleConfig = ROLE_RULES[role] || ROLE_RULES.public;
 
+      const savedPetugas = localStorage.getItem('saved_petugas_nama') || '';
+      const finalPetugas = namaPetugas || (role === 'survey' ? (savedPetugas || 'Petugas Surveyor') : (json.user || user));
+
+      if (finalPetugas && role === 'survey') {
+        localStorage.setItem('saved_petugas_nama', finalPetugas);
+      }
+
       const session = {
-        username:   json.user || user,
-        role:       role,
-        roleName:   roleConfig.name,
-        loggedInAt: new Date().toISOString()
+        username:     json.user || user,
+        role:         role,
+        roleName:     roleConfig.name,
+        petugas_nama: finalPetugas,
+        loggedInAt:   new Date().toISOString()
       };
 
       setAuthSession(session);
@@ -212,7 +221,7 @@ function customizeNavbarByRole(session) {
         </button>
       ` : ''}
       <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;background:#f8fafc;padding:4px 10px;border-radius:20px;border:1px solid #e2e8f0;">
-        <span style="font-weight:700;color:#0f172a;">👤 ${session.username}</span>
+        <span style="font-weight:700;color:#0f172a;" title="Pengguna aktif: ${session.petugas_nama || session.username}">👤 ${session.petugas_nama || session.username}</span>
         <span style="font-size:10px;font-weight:800;background:${roleConfig.badgeColor};color:#fff;padding:2px 7px;border-radius:10px;letter-spacing:0.3px;">
           ${roleConfig.label.toUpperCase()}
         </span>
