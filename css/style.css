@@ -35,12 +35,13 @@ body {
   margin-bottom: 16px;
 }
 .nav-container {
-  max-width: 500px;
+  max-width: 1100px;
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 52px;
+  min-height: 52px;
+  gap: 10px;
 }
 .nav-brand {
   display: flex;
@@ -49,10 +50,12 @@ body {
   font-weight: 700;
   font-size: 15px;
   color: var(--primary);
+  white-space: nowrap;
 }
 .nav-links {
   display: flex;
   gap: 6px;
+  align-items: center;
 }
 .nav-item {
   text-decoration: none;
@@ -62,9 +65,10 @@ body {
   font-weight: 600;
   color: #64748b;
   transition: all 0.15s ease;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 .nav-item:hover {
   color: var(--primary);
@@ -461,4 +465,220 @@ input:focus, select:focus, textarea:focus {
 .btn-modal:active {
   transform: scale(0.98);
 }
+
+/* ============================================================
+   RESPONSIVE DESIGN KHUSUS MOBILE (HP & TABLET)
+============================================================ */
+
+/* Layar Tablet & Mobile (di bawah 768px) */
+@media (max-width: 768px) {
+  .app-navbar {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+
+  .nav-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 10px;
+    min-height: auto;
+  }
+
+  .nav-brand {
+    order: 1;
+    font-size: 14px;
+    gap: 6px;
+  }
+
+  #authNavProfile {
+    order: 2;
+    margin-left: auto !important;
+    padding-left: 0 !important;
+    gap: 6px !important;
+  }
+
+  .nav-links {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding: 6px 0 2px 0;
+    gap: 6px;
+    border-top: 1px solid #f1f5f9;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-item {
+    padding: 6px 11px;
+    font-size: 12px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 20px;
+  }
+
+  .nav-item.active {
+    background: #e0f2fe;
+    border-color: #bae6fd;
+    color: var(--primary);
+  }
+}
+
+/* Layar Smartphone (di bawah 600px) */
+@media (max-width: 600px) {
+  body {
+    padding-bottom: 30px;
+  }
+
+  .app-card {
+    margin: 0 10px 24px 10px;
+    padding: 16px 13px;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+
+  .header h1 {
+    font-size: 17.5px;
+    line-height: 1.35;
+  }
+
+  .header p {
+    font-size: 12px;
+  }
+
+  /* Header Peta & Toolbar Gambar Atap */
+  .map-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .map-header-row label {
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .draw-tools-bar {
+    display: flex;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .draw-tools-bar .btn-tool {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 12px;
+    min-height: 40px;
+  }
+
+  .draw-instructions {
+    font-size: 11.5px;
+    padding: 8px 10px;
+  }
+
+  /* Peta Satelit di Layar HP */
+  #map {
+    height: 330px;
+    border-radius: 12px;
+  }
+
+  .btn-floating-gps {
+    padding: 9px 14px;
+    font-size: 12px;
+    bottom: 12px;
+    right: 12px;
+    min-height: 42px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Badge Koordinat */
+  .coord-badge {
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 10px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+
+  /* Form Fields */
+  .form-group {
+    margin-bottom: 13px;
+  }
+
+  label {
+    font-size: 12.5px;
+    margin-bottom: 5px;
+  }
+
+  input[type="text"],
+  input[type="tel"],
+  input[type="number"],
+  select,
+  textarea {
+    min-height: 48px;
+    font-size: 16px; /* Mencegah auto-zoom browser iOS Safari */
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+
+  /* Checkbox Grid di HP */
+  .checkbox-grid {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .checkbox-label {
+    padding: 9px 12px;
+    font-size: 13px;
+    min-height: 46px;
+    border-radius: 9px;
+  }
+
+  /* Tombol Kirim */
+  .btn-submit {
+    height: 52px;
+    font-size: 16px;
+    font-weight: 700;
+    border-radius: 12px;
+    margin-top: 18px;
+  }
+
+  /* Modal Sukses di HP */
+  .modal-card {
+    padding: 24px 18px;
+    border-radius: 18px;
+  }
+
+  .modal-card h2 {
+    font-size: 18px;
+  }
+
+  .modal-card p {
+    font-size: 13px;
+  }
+}
+
+/* Smartphone Mini (di bawah 380px) */
+@media (max-width: 380px) {
+  .app-card {
+    margin: 0 6px 20px 6px;
+    padding: 14px 10px;
+  }
+
+  .nav-brand span:last-child {
+    font-size: 13px;
+  }
+
+  #map {
+    height: 290px;
+  }
+}
+
 
