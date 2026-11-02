@@ -275,7 +275,7 @@
               </div>
             </div>
 
-            <!-- Toolbar Layer Peta & Pencarian Lokasi -->
+            <!-- Toolbar Layer Peta & Cari Koordinat -->
             <div class="pipe-map-toolbar">
               <div style="display:flex;gap:4px;align-items:center;">
                 <button class="layer-btn active" id="pipeLayerSat" onclick="switchPipeLayer('satellite')">🛰️ Satelit</button>
@@ -283,14 +283,21 @@
                 <button class="layer-btn" id="pipeLayerTopo" onclick="switchPipeLayer('terrain')">⛰️ Kontur</button>
               </div>
 
-              <!-- Input Pencarian Lokasi, Landmark & Alamat di Peta -->
-              <div class="pipe-map-search-box">
-                <span class="search-box-icon">🔍</span>
-                <input type="text" id="mapSearchInput"
-                  placeholder="Cari lokasi, desa, sekolah, pasar, jalan, koordinat..."
-                  autocomplete="off" />
-                <button type="button" id="mapSearchClearBtn" onclick="clearMapSearch()" title="Hapus pencarian">✕</button>
-                <div id="mapSearchResults" class="map-search-dropdown" style="display:none;"></div>
+              <!-- Input Pencarian Koordinat GPS (Contoh: -2.894552, 119.855836) -->
+              <div class="coord-search-bar" style="display:flex;align-items:center;gap:6px;flex:1;max-width:390px;margin:0 6px;">
+                <div style="position:relative;flex:1;">
+                  <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;color:#64748b;pointer-events:none;">📍</span>
+                  <input type="text" id="coordSearchInput"
+                    placeholder="Ketik/tempel koordinat: -2.894552, 119.855836"
+                    style="width:100%;height:32px;padding:0 26px 0 28px;border-radius:20px;border:1.5px solid #cbd5e1;font-size:11.5px;color:#1e293b;background:#ffffff;outline:none;transition:border-color 0.15s;"
+                    oninput="document.getElementById('coordSearchClearBtn').style.display = this.value ? 'block' : 'none'"
+                    onkeydown="if(event.key==='Enter') goToSearchedCoord()" />
+                  <button type="button" id="coordSearchClearBtn" onclick="clearSearchedCoord()"
+                    style="position:absolute;right:7px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;font-size:12px;cursor:pointer;display:none;padding:2px 4px;" title="Hapus">✕</button>
+                </div>
+                <button type="button" class="btn btn-primary" onclick="goToSearchedCoord()" style="padding:5px 12px;font-size:11.5px;height:32px;border-radius:16px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;">
+                  Buka Titik
+                </button>
               </div>
 
               <button class="btn btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="loadPipes()">
