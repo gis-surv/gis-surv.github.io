@@ -152,12 +152,12 @@ function filterTable() {
   const q = document.getElementById('searchInput').value.toLowerCase().trim();
   filteredRows = q
     ? allRows.filter(r =>
-        (r.nama||'').toLowerCase().includes(q) ||
-        (r.nik||'').toLowerCase().includes(q) ||
-        (r.alamat||'').toLowerCase().includes(q) ||
-        (r.whatsapp||'').toLowerCase().includes(q) ||
-        (r.klasifikasi||'').toLowerCase().includes(q) ||
-        (r.peruntukan||'').toLowerCase().includes(q)
+        String(r.nama || '').toLowerCase().includes(q) ||
+        String(r.nik || '').toLowerCase().includes(q) ||
+        String(r.alamat || '').toLowerCase().includes(q) ||
+        String(r.whatsapp || '').toLowerCase().includes(q) ||
+        String(r.klasifikasi || '').toLowerCase().includes(q) ||
+        String(r.peruntukan || '').toLowerCase().includes(q)
       )
     : [...allRows];
   document.getElementById('statFiltered').textContent = filteredRows.length;
