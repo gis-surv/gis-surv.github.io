@@ -7,19 +7,25 @@ document.addEventListener('DOMContentLoaded', function () {
   // 1. Layer Google Hybrid (Foto Satelit Asli Google + Nama Jalan / Label)
   const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
     maxZoom: 20,
-    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    crossOrigin: true,
+    referrerPolicy: 'no-referrer'
   });
 
   // 2. Layer Google Peta Jalan Standar
   const googleRoadmap = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
     maxZoom: 20,
-    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    crossOrigin: true,
+    referrerPolicy: 'no-referrer'
   });
 
   // 3. Layer Google Kontur & Topografi Medan (Terrain)
   const googleTerrain = L.tileLayer('https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
     maxZoom: 20,
-    subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    crossOrigin: true,
+    referrerPolicy: 'no-referrer'
   });
 
   // Inisialisasi Peta
@@ -33,13 +39,21 @@ document.addEventListener('DOMContentLoaded', function () {
   // Tombol zoom di kiri atas
   L.control.zoom({ position: 'topleft' }).addTo(map);
 
+  // Layer Penanda Pelanggan & Jalur Pipa Terdaftar di Sekitar
+  const existingCustomersGroup = L.featureGroup().addTo(map);
+  const existingPipesGroup     = L.featureGroup().addTo(map);
+
   // Pengalih mode peta di kanan atas (Satelit, Jalan, & Kontur Topografi)
   const baseMaps = {
     "Google Satelit": googleHybrid,
     "Google Jalan": googleRoadmap,
     "Google Kontur / Medan": googleTerrain
   };
-  L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+  const overlayMaps = {
+    "Pelanggan Terdata (Titik & Atap)": existingCustomersGroup,
+    "Jaringan Pipa Distribusi": existingPipesGroup
+  };
+  L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
 
   // Pastikan render ukuran peta sempurna di layar mobile
   setTimeout(() => { map.invalidateSize(); }, 300);
@@ -509,4 +523,252 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   });
+
+  // ==========================================
+  // PEMUATAN DATA GIS SEKITAR (PELANGGAN & PIPA)
+  // Berfokus pada pemusatan lokasi saat ini tanpa fitBounds
+  // ==========================================
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function parsePolygonCoords(str) {
+    if (!str) return [];
+    const cleanStr = String(str).replace(/^['=]+/, '').trim();
+    const rawPairs = cleanStr.split(/[;\n|]/).map(s => s.trim()).filter(Boolean);
+    const coords = [];
+    rawPairs.forEach(pair => {
+      const parts = pair.split(',');
+      if (parts.length >= 2) {
+        let pLat = parseFloat(parts[0].trim().replace(',', '.'));
+        let pLng = parseFloat(parts[1].trim().replace(',', '.'));
+        if (!isNaN(pLat) && !isNaN(pLng)) {
+          if (!parts[0].includes('.') && Math.abs(pLat) > 1000) pLat /= 1000000;
+          if (!parts[1].includes('.') && Math.abs(pLng) > 1000) pLng /= 1000000;
+          coords.push([pLat, pLng]);
+        }
+      }
+    });
+    return coords;
+  }
+
+  function normalizePipeRow(p) {
+    if (!p) return {};
+    let coordStr = '';
+    for (const [key, val] of Object.entries(p)) {
+      if (typeof val === 'string' && val.includes(';') && val.includes(',') && val.length > 20) {
+        coordStr = val.replace(/^['=]/, '').trim();
+        break;
+      }
+    }
+    return {
+      nama: p.nama || 'Jalur Pipa',
+      diameter: p.diameter ? String(p.diameter).replace(/^'/, '').trim() : '',
+      panjang: p.panjang ? String(p.panjang).replace(/^'/, '').trim() : '',
+      elev_awal: p.elev_awal ? String(p.elev_awal).replace(/^'/, '').trim() : '',
+      elev_akhir: p.elev_akhir ? String(p.elev_akhir).replace(/^'/, '').trim() : '',
+      warna: p.warna || '#2563eb',
+      koordinat: coordStr || (p.koordinat ? String(p.koordinat).replace(/^['=]/, '').trim() : '')
+    };
+  }
+
+  function parsePipeCoords(str) {
+    if (!str) return [];
+    const cleanStr = String(str).replace(/^['=]+/, '').trim();
+    const pairs = cleanStr.split(';').map(s => s.trim()).filter(Boolean);
+    const coords = [];
+    pairs.forEach(pair => {
+      const parts = pair.split(',');
+      if (parts.length >= 2) {
+        let lat = parseFloat(parts[0].trim().replace(',', '.'));
+        let lng = parseFloat(parts[1].trim().replace(',', '.'));
+        if (!isNaN(lat) && !isNaN(lng)) {
+          if (!parts[0].includes('.') && Math.abs(lat) > 1000) lat /= 1000000;
+          if (!parts[1].includes('.') && Math.abs(lng) > 1000) lng /= 1000000;
+          coords.push([lat, lng]);
+        }
+      }
+    });
+    return coords;
+  }
+
+  function loadExistingGisLayers() {
+    const scriptUrl = CONFIG.SCRIPT_URL;
+    if (!scriptUrl || scriptUrl.includes("ISI_DENGAN_GOOGLE")) return;
+
+    const badgeStatus = document.getElementById('gisLayersStatus');
+    let loadedCustCount = 0;
+    let loadedPipeCount = 0;
+
+    function updateBadgeText() {
+      if (badgeStatus) {
+        badgeStatus.textContent = `${loadedCustCount} Pelanggan & ${loadedPipeCount} Rute Pipa Terdata`;
+      }
+    }
+
+    // 1. Muat Data Pelanggan Terdaftar (Titik & Poligon Atap)
+    fetch(scriptUrl)
+      .then(res => res.json())
+      .then(res => {
+        const rows = Array.isArray(res) ? res :
+                     (res.status === 'success' && Array.isArray(res.data)) ? res.data :
+                     (Array.isArray(res.data) ? res.data : []);
+
+        existingCustomersGroup.clearLayers();
+        loadedCustCount = rows.length;
+        updateBadgeText();
+
+        rows.forEach((row, idx) => {
+          const noUrut = row.no || (idx + 1);
+          let rawLat = (row.latitude !== undefined && row.latitude !== "") ? row.latitude : row.lat;
+          let rawLng = (row.longitude !== undefined && row.longitude !== "") ? row.longitude : row.lng;
+          let lat = parseFloat(String(rawLat || '').replace(/^'/, '').trim().replace(',', '.'));
+          let lng = parseFloat(String(rawLng || '').replace(/^'/, '').trim().replace(',', '.'));
+          if (!isNaN(lat) && !String(rawLat).includes('.') && Math.abs(lat) > 1000) lat /= 1000000;
+          if (!isNaN(lng) && !String(rawLng).includes('.') && Math.abs(lng) > 1000) lng /= 1000000;
+
+          const polyRaw = row.polygon || row.polygon_coords || '';
+          const polygonCoords = parsePolygonCoords(polyRaw);
+
+          const popupHtml = `
+            <div style="font-size:12px;line-height:1.45;min-width:185px;">
+              <div style="font-size:13px;font-weight:800;color:#0284c7;margin-bottom:3px;border-bottom:1px solid #e2e8f0;padding-bottom:3px;">
+                #${noUrut}. ${escapeHtml(row.nama || 'Pelanggan Terdaftar')}
+              </div>
+              <div style="color:#334155;margin-bottom:2px;">📍 ${escapeHtml(row.alamat || '-')}</div>
+              <div style="color:#059669;font-weight:600;margin-bottom:2px;">📋 ${escapeHtml(row.klasifikasi || row.peruntukan || 'Rumah Tangga')}</div>
+              ${row.whatsapp ? `<div style="color:#2563eb;font-size:11px;margin-bottom:2px;">📞 ${escapeHtml(row.whatsapp)}</div>` : ''}
+              ${polygonCoords.length >= 3 ? `<div style="color:#dc2626;font-size:11px;font-weight:700;">🏠 Bidang Atap (${polygonCoords.length} Sudut Arsiran)</div>` : ''}
+              <div style="font-size:10px;color:#64748b;margin-top:4px;border-top:1px dashed #e2e8f0;padding-top:2px;">Sumber: <strong>${escapeHtml(row.sumber || 'Surveyor')}</strong></div>
+            </div>
+          `;
+
+          // A. Arsiran Atap Bangunan yang sudah terdata
+          if (polygonCoords.length >= 3) {
+            const roofPoly = L.polygon(polygonCoords, {
+              color: '#dc2626',
+              weight: 1.8,
+              fillColor: '#ef4444',
+              fillOpacity: 0.35,
+              dashArray: '3, 3'
+            }).bindPopup(popupHtml);
+
+            roofPoly.on('click', function(e) {
+              if (isDrawingMode) {
+                L.DomEvent.stopPropagation(e);
+                map.fire('click', e);
+              }
+            });
+
+            existingCustomersGroup.addLayer(roofPoly);
+
+            if (isNaN(lat) || isNaN(lng)) {
+              let sumLat = 0, sumLng = 0;
+              polygonCoords.forEach(pt => { sumLat += pt[0]; sumLng += pt[1]; });
+              lat = sumLat / polygonCoords.length;
+              lng = sumLng / polygonCoords.length;
+            }
+          }
+
+          // B. Pin Titik Pelanggan yang sudah terdata
+          if (!isNaN(lat) && !isNaN(lng)) {
+            const pinIcon = L.divIcon({
+              className: 'existing-cust-pin-wrapper',
+              html: `<div class="existing-cust-pin" title="${escapeHtml(row.nama || 'Pelanggan')}">${noUrut}</div>`,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
+              popupAnchor: [0, -10]
+            });
+
+            const custMarker = L.marker([lat, lng], {
+              icon: pinIcon,
+              zIndexOffset: 50
+            }).bindPopup(popupHtml);
+
+            custMarker.on('click', function(e) {
+              if (isDrawingMode) {
+                L.DomEvent.stopPropagation(e);
+                map.fire('click', e);
+              }
+            });
+
+            existingCustomersGroup.addLayer(custMarker);
+          }
+        });
+        // CATATAN: TIDAK melakukan fitBounds agar posisi peta tetap terpusat di lokasi surveyor
+      })
+      .catch(err => {
+        console.warn("Gagal memuat layer pelanggan:", err);
+      });
+
+    // 2. Muat Jalur Pipa Distribusi dari Sheet 3
+    fetch(scriptUrl + '?action=get_pipes')
+      .then(res => res.json())
+      .then(json => {
+        if (json.status === 'success' && Array.isArray(json.pipes)) {
+          existingPipesGroup.clearLayers();
+          const validPipes = [];
+
+          json.pipes.forEach(rawPipe => {
+            const pipe = normalizePipeRow(rawPipe);
+            const coords = parsePipeCoords(pipe.koordinat);
+            if (coords.length >= 2) {
+              validPipes.push(pipe);
+              const color = pipe.warna || '#2563eb';
+
+              const polyline = L.polyline(coords, {
+                color: color,
+                weight: 4,
+                opacity: 0.9,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }).bindPopup(`
+                <div style="font-size:12px;line-height:1.45;min-width:180px;">
+                  <div style="font-weight:800;color:${color};font-size:13px;margin-bottom:3px;border-bottom:1px solid #e2e8f0;padding-bottom:3px;">
+                    🔧 ${escapeHtml(pipe.nama || 'Jalur Pipa')}
+                  </div>
+                  <div>Dimensi: <strong>${pipe.diameter ? pipe.diameter + '"' : '-'}</strong></div>
+                  <div>Panjang: <strong>${pipe.panjang || '0'} meter</strong></div>
+                  ${pipe.elev_awal ? `<div>Elevasi: <strong>${pipe.elev_awal}m ➔ ${pipe.elev_akhir}m</strong></div>` : ''}
+                </div>
+              `);
+
+              polyline.on('click', function(e) {
+                if (isDrawingMode) {
+                  L.DomEvent.stopPropagation(e);
+                  map.fire('click', e);
+                }
+              });
+
+              existingPipesGroup.addLayer(polyline);
+
+              // Titik simpul pipa awal & akhir
+              existingPipesGroup.addLayer(L.circleMarker(coords[0], {
+                radius: 4, fillColor: '#22c55e', color: '#fff', weight: 1.5, fillOpacity: 1
+              }).bindPopup(`<strong>Titik Awal:</strong> ${escapeHtml(pipe.nama)}`));
+
+              existingPipesGroup.addLayer(L.circleMarker(coords[coords.length - 1], {
+                radius: 4, fillColor: '#ef4444', color: '#fff', weight: 1.5, fillOpacity: 1
+              }).bindPopup(`<strong>Titik Akhir:</strong> ${escapeHtml(pipe.nama)}`));
+            }
+          });
+
+          loadedPipeCount = validPipes.length;
+          updateBadgeText();
+          // CATATAN: TIDAK melakukan fitBounds agar posisi peta tetap terpusat di lokasi surveyor
+        }
+      })
+      .catch(err => {
+        console.warn("Gagal memuat layer pipa:", err);
+      });
+  }
+
+  // Muat data GIS sekitar saat inisialisasi awal
+  loadExistingGisLayers();
+
 });

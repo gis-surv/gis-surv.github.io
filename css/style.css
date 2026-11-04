@@ -682,3 +682,25 @@ input:focus, select:focus, textarea:focus {
 }
 
 
+
+/* Penanda Pelanggan & Jalur Pipa Terdaftar di Peta Form */
+.existing-cust-pin {
+  background: #0284c7;
+  color: #ffffff;
+  border: 1.5px solid #ffffff;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.existing-cust-pin:hover {
+  transform: scale(1.25);
+  background: #0369a1;
+}

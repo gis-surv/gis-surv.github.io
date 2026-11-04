@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Peta Rencana Pembangunan SPAM Landorundun — PERUMDAM Amerta Toraya</title>
+  <title>Peta Calon Pelanggan SPAM Landorundun Sesean Suloara' — PERUMDAM Amerta Toraya</title>
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -28,17 +28,17 @@
 
   <!-- Open Graph (Facebook, WhatsApp, Telegram, LinkedIn) -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta property="og:title" content="Daftar Calon Pelanggan SPAM Landorundun Sesean Suloara' — PERUMDAM Amerta Toraya" />
   <meta property="og:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
   <meta property="og:image" content="assets/icons/og-image.png" />
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Peta Rencana Pembangunan SPAM Landorundun — PERUMDAM Amerta Toraya" />
+  <meta property="og:image:alt" content="Peta Calon Pelanggan SPAM Landorundun Sesean Suloara' — PERUMDAM Amerta Toraya" />
 
   <!-- Twitter Cards -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya" />
+  <meta name="twitter:title" content="Daftar Calon Pelanggan SPAM Landorundun Sesean Suloara' — PERUMDAM Amerta Toraya" />
   <meta name="twitter:description" content="Sistem Informasi Geografis (GIS) pemetaan sebaran calon pelanggan, analisis elevasi topografi, dan rute pipa distribusi air minum PERUMDAM Amerta Toraya." />
   <meta name="twitter:image" content="assets/icons/og-image.png" />
 
@@ -731,7 +731,7 @@
 
         <!-- 1. Judul Laporan Peta Topografi -->
         <div class="legend-box legend-title-box">
-          <div class="legend-main-title">RENCANA PEMBANGUNAN SPAM LANDORUNDUN</div>
+          <div class="legend-main-title">DAFTAR CALON PELANGGAN SPAM LANDORUNDUN SESEAN SULOARA'</div>
           <div class="legend-instansi-title">PERUMDAM Amerta Toraya</div>
           <div class="legend-sub-title">PETA TOPOGRAFI JALUR PIPA &amp; SEBARAN PELANGGAN</div>
         </div>
@@ -782,7 +782,7 @@
           <div class="legend-heading">Wilayah Perencanaan</div>
           <div class="info-row">
             <span class="label">Pekerjaan:</span>
-            <span class="value">SPAM Landorundun</span>
+            <span class="value">SPAM Landorundun Sesean Suloara'</span>
           </div>
           <div class="info-row">
             <span class="label">Instansi:</span>
@@ -849,7 +849,7 @@
 
         <!-- 7. Footer Resmi -->
         <div class="legend-footer">
-          Rencana Pembangunan SPAM Landorundun<br>
+          Daftar Calon Pelanggan SPAM Landorundun Sesean Suloara'<br>
           PERUMDAM Amerta Toraya &bull; Toraja Utara
         </div>
 
@@ -869,8 +869,8 @@
     let mapHasBeenFitted = false;
 
     // Koordinat Pusat Toraja Utara (Rantepao)
-    const TORAJA_UTARA_LAT = -2.97190;
-    const TORAJA_UTARA_LNG = 119.89596;
+    const TORAJA_UTARA_LAT = -2.894552;
+    const TORAJA_UTARA_LNG = 119.855836;
 
     // Layer Map Options (Google Maps Engine)
     let layerSatellite = null;
@@ -885,21 +885,27 @@
       layerSatellite = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-        attribution: '&copy; Google Maps'
+        attribution: '&copy; Google Maps',
+        crossOrigin: true,
+        referrerPolicy: 'no-referrer'
       });
 
       // 2. Jalan & Bangunan Google (Roadmap)
       layerRoadmap = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-        attribution: '&copy; Google Maps'
+        attribution: '&copy; Google Maps',
+        crossOrigin: true,
+        referrerPolicy: 'no-referrer'
       });
 
       // 3. Peta Kontur & Topografi Medan Relief (Terrain Google)
       layerTerrain = L.tileLayer('https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-        attribution: '&copy; Google Maps (Terrain / Kontur)'
+        attribution: '&copy; Google Maps (Terrain / Kontur)',
+        crossOrigin: true,
+        referrerPolicy: 'no-referrer'
       });
 
       printMap = L.map('printMap', {

@@ -1,6 +1,6 @@
 /**
  * PWA Helper & Installer Script
- * RENCANA PEMBANGUNAN SPAM LANDORUNDUN — PERUMDAM Amerta Toraya
+ * DAFTAR CALON PELANGGAN SPAM LANDORUNDUN SESEAN SULOARA' — PERUMDAM Amerta Toraya
  */
 
 (function () {
@@ -11,8 +11,8 @@
   // 1. Register Service Worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => {
+      navigator.serviceWorker.register('./sw.js').then(reg => {
+          try { reg.update(); } catch(e) {}
           console.log('[PWA] Service Worker terdaftar dengan scope:', reg.scope);
         })
         .catch(err => {
@@ -54,7 +54,7 @@
     banner.innerHTML = `
       <div class="pwa-banner-card">
         <div class="pwa-banner-icon">
-          <img src="assets/icons/icon-192.png" alt="Logo SPAM Landorundun" width="40" height="40">
+          <img src="assets/icons/icon-192.png" alt="Logo SPAM Landorundun Sesean Suloara'" width="40" height="40">
         </div>
         <div class="pwa-banner-info">
           <div class="pwa-banner-title">Pasang Aplikasi PWA</div>
@@ -196,7 +196,7 @@
 
   function showToastInstallSuccess() {
     const toast = document.createElement('div');
-    toast.textContent = '🎉 Aplikasi SPAM Landorundun berhasil dipasang!';
+    toast.textContent = '🎉 Aplikasi SPAM Landorundun Sesean Suloara' berhasil dipasang!';
     toast.style.cssText = `
       position: fixed;
       bottom: 24px;

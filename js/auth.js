@@ -1,6 +1,6 @@
 /**
  * Sistem Autentikasi & Kontrol Hak Akses Berbasis Role (RBAC)
- * PERUMDAM AMERTA TORAYA - RENCANA PEMBANGUNAN SPAM LANDORUNDUN
+ * PERUMDAM AMERTA TORAYA - DAFTAR CALON PELANGGAN SPAM LANDORUNDUN SESEAN SULOARA'
  * 
  * CATATAN KEAMANAN:
  * Seluruh verifikasi username & password diproses 100% di server Google Spreadsheet

@@ -1,9 +1,9 @@
 /**
- * Service Worker — RENCANA PEMBANGUNAN SPAM LANDORUNDUN
+ * Service Worker — DAFTAR CALON PELANGGAN SPAM LANDORUNDUN SESEAN SULOARA'
  * PERUMDAM Amerta Toraya
  */
 
-const CACHE_NAME = 'spam-landorundun-v3';
+const CACHE_NAME = 'spam-landorundun-v6';
 
 const STATIC_ASSETS = [
   './',
@@ -56,35 +56,33 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch: Network First (ambil kode terbaru dari server, fallback ke cache jika offline)
+// Fetch: Hanya intercept aset statis lokal (same-origin).
+// Request eksternal (Google Maps Satelit mt0-mt3, CDN Leaflet, dsb) TIDAK DIINTERCEPT
+// agar peta satelit dimuat langsung oleh browser dengan kecepatan native tanpa hambatan Service Worker!
 self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Jangan cache request ke Google Apps Script (harus selalu live / real-time)
-  if (url.hostname.includes('script.google.com') || url.hostname.includes('googleusercontent.com')) {
-    event.respondWith(
-      fetch(req).catch(() => {
-        return new Response(JSON.stringify({ status: 'offline', message: 'Anda sedang dalam mode offline.' }), {
-          headers: { 'Content-Type': 'application/json' }
-        });
-      })
-    );
+  // 1. Lewatkan semua request ke domain luar (Google Maps tiles, unpkg, Apps Script, dll)
+  if (url.origin !== self.location.origin) {
+    return; // Browser langsung memprosesnya di jaringan tercepat tanpa SW
+  }
+
+  // 2. Hanya proses method GET untuk file lokal
+  if (req.method !== 'GET') {
     return;
   }
 
-  // Strategi Network-First untuk kode HTML/JS/CSS agar selalu up to date
+  // 3. Strategi Network-First untuk kode HTML/JS/CSS lokal
   event.respondWith(
     fetch(req).then(networkResponse => {
-      if (networkResponse && networkResponse.status === 200 && req.method === 'GET') {
+      if (networkResponse && networkResponse.status === 200) {
         const resClone = networkResponse.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(req, resClone));
       }
       return networkResponse;
     }).catch(() => {
-      // Jika offline / jaringan mati, ambil dari cache
       return caches.match(req);
     })
   );
 });
-
