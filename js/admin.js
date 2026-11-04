@@ -164,6 +164,9 @@ function filterTable() {
   renderCustomerTable(filteredRows);
 }
 
+// Simpan referensi data baris pelanggan ke memori JS agar kebal terhadap karakter tanda petik/kutip
+window.customerDataMap = window.customerDataMap || {};
+
 function renderCustomerTable(rows) {
   const tbody = document.getElementById('tableBody');
   const empty = document.getElementById('emptyState');
@@ -172,13 +175,20 @@ function renderCustomerTable(rows) {
   if (rows.length === 0) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
+  window.customerDataMap = {};
+
   rows.forEach(row => {
+    window.customerDataMap[row.rowIndex] = row;
+
     const hasPoly   = row.polygon && row.polygon.trim() !== '';
     const modeBadge = hasPoly
       ? '<span class="badge badge-polygon">🏠 Arsiran</span>'
       : '<span class="badge badge-point">📍 Titik</span>';
-    const coordText = (row.latitude && row.longitude)
-      ? `<span style="font-family:monospace;font-size:10.5px;color:#64748b">${parseFloat(row.latitude).toFixed(5)}, ${parseFloat(row.longitude).toFixed(5)}</span>`
+
+    const rawLat = parseFloat(String(row.latitude || '').replace(',', '.'));
+    const rawLng = parseFloat(String(row.longitude || '').replace(',', '.'));
+    const coordText = (!isNaN(rawLat) && !isNaN(rawLng))
+      ? `<span style="font-family:monospace;font-size:10.5px;color:#64748b">${rawLat.toFixed(5)}, ${rawLng.toFixed(5)}</span>`
       : '<span style="color:#cbd5e1">—</span>';
 
     const tr = document.createElement('tr');
@@ -197,39 +207,67 @@ function renderCustomerTable(rows) {
       <td>${coordText}</td>
       <td>
         <div class="action-btns">
-          <button class="btn-edit" onclick='openEditModal(${JSON.stringify(row)})'>✏️ Edit</button>
-          <button class="btn-delete" onclick="confirmDeleteCustomer(${row.rowIndex},${row.no},'${escHtml(row.nama).replace(/'/g,"\\'")}')">🗑️ Hapus</button>
+          <button type="button" class="btn-edit" onclick="openEditModalByRowIndex(${row.rowIndex})">✏️ Edit</button>
+          <button type="button" class="btn-delete" onclick="confirmDeleteCustomerByRowIndex(${row.rowIndex})">🗑️ Hapus</button>
         </div>
       </td>`;
     tbody.appendChild(tr);
   });
 }
 
+function openEditModalByRowIndex(rowIndex) {
+  const row = (window.customerDataMap && window.customerDataMap[rowIndex]) || allRows.find(r => r.rowIndex === rowIndex);
+  if (!row) {
+    showToast('Data pelanggan tidak ditemukan', 'error');
+    return;
+  }
+  openEditModal(row);
+}
+
+function confirmDeleteCustomerByRowIndex(rowIndex) {
+  const row = (window.customerDataMap && window.customerDataMap[rowIndex]) || allRows.find(r => r.rowIndex === rowIndex);
+  if (!row) return;
+  confirmDeleteCustomer(row.rowIndex, row.no, row.nama || '');
+}
+
 // ─── MODAL EDIT PELANGGAN DENGAN PETA ──────────────────────
 function openEditModal(row) {
-  document.getElementById('editRowIndex').value    = row.rowIndex;
-  document.getElementById('modalTitle').textContent= `#${row.no} — ${row.nama || 'Pelanggan'}`;
-  document.getElementById('editNama').value         = row.nama        || '';
-  document.getElementById('editNik').value          = row.nik         || '';
-  document.getElementById('editWa').value           = row.whatsapp    || '';
-  document.getElementById('editAlamat').value       = row.alamat      || '';
-  document.getElementById('editLat').value          = row.latitude    || '';
-  document.getElementById('editLng').value          = row.longitude   || '';
-  document.getElementById('editPolygon').value      = row.polygon     || '';
-  setSelectValue(document.getElementById('editPeruntukan'),  row.peruntukan);
-  setSelectValue(document.getElementById('editKlasifikasi'), row.klasifikasi);
+  if (!row) {
+    showToast('Data pelanggan tidak valid', 'error');
+    return;
+  }
+  try {
+    document.getElementById('editRowIndex').value    = row.rowIndex || '';
+    document.getElementById('modalTitle').textContent= `#${row.no} — ${row.nama || 'Pelanggan'}`;
+    document.getElementById('editNama').value         = row.nama        || '';
+    document.getElementById('editNik').value          = row.nik         || '';
+    document.getElementById('editWa').value           = row.whatsapp    || '';
+    document.getElementById('editAlamat').value       = row.alamat      || '';
+    document.getElementById('editLat').value          = row.latitude    || '';
+    document.getElementById('editLng').value          = row.longitude   || '';
+    document.getElementById('editPolygon').value      = row.polygon     || '';
+    setSelectValue(document.getElementById('editPeruntukan'),  row.peruntukan);
+    setSelectValue(document.getElementById('editKlasifikasi'), row.klasifikasi);
 
-  document.getElementById('editModal').classList.add('open');
+    document.getElementById('editModal').classList.add('open');
 
-  setTimeout(() => {
-    if (!editMap) {
-      initEditMap();
-    } else {
-      editMap.invalidateSize();
-    }
-    resetEditMapState();
-    loadCustomerOnEditMap(row);
-  }, 180);
+    setTimeout(() => {
+      try {
+        if (!editMap) {
+          initEditMap();
+        } else {
+          editMap.invalidateSize();
+        }
+        resetEditMapState();
+        loadCustomerOnEditMap(row);
+      } catch (errMap) {
+        console.warn('Gagal render peta edit modal:', errMap);
+      }
+    }, 180);
+  } catch (err) {
+    console.error('Gagal membuka modal edit:', err);
+    showToast('Gagal membuka modal edit: ' + err.message, 'error');
+  }
 }
 
 function closeEditModal() {
@@ -410,9 +448,9 @@ function resetEditMapState() {
 }
 
 function loadCustomerOnEditMap(row) {
-  const hasPoly = row.polygon && row.polygon.trim() !== '';
-  const lat     = parseFloat(row.latitude);
-  const lng     = parseFloat(row.longitude);
+  const hasPoly = row.polygon && String(row.polygon).trim() !== '';
+  let lat       = parseFloat(String(row.latitude || '').replace(',', '.'));
+  let lng       = parseFloat(String(row.longitude || '').replace(',', '.'));
 
   if (hasPoly) {
     const coords = parsePolyStr(row.polygon);
@@ -432,7 +470,17 @@ function loadCustomerOnEditMap(row) {
         editMarker = L.marker([lat, lng], { icon }).addTo(editMap);
       }
 
-      editMap.fitBounds(editPolyLayer.getBounds(), { padding: [30,30] });
+      try {
+        const bounds = editPolyLayer.getBounds();
+        if (bounds && bounds.isValid()) {
+          editMap.fitBounds(bounds, { padding: [30,30] });
+        } else if (!isNaN(lat) && !isNaN(lng)) {
+          editMap.setView([lat, lng], 18);
+        }
+      } catch (errBounds) {
+        if (!isNaN(lat) && !isNaN(lng)) editMap.setView([lat, lng], 18);
+      }
+
       setEditStatus(`🏠 Poligon atap: ${coords.length} sudut`, 'polygon');
       return;
     }
@@ -448,10 +496,10 @@ function loadCustomerOnEditMap(row) {
     editMarker.on('dragend', e => {
       const pos = e.target.getLatLng();
       updateCoordInputs(pos.lat, pos.lng);
-      setEditStatus(`📍 Titik dipindahkan: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
+      setEditStatus(`📍 Titik: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
     });
     editMap.setView([lat, lng], 18);
-    setEditStatus(`📍 Titik koordinat — drag marker atau klik lokasi baru`, 'point');
+    setEditStatus(`📍 Titik lokasi: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
   } else {
     editMap.setView([TORAJA_LAT, TORAJA_LNG], 15);
     setEditStatus('Belum ada koordinat — klik peta untuk menandai lokasi');
@@ -1106,15 +1154,19 @@ function formatPipeLength(meters) {
 
 function parsePolyStr(str) {
   if (!str) return [];
-  const clean = String(str).replace(/^['=]/, '').trim();
+  const clean = String(str).replace(/^['"=]+/, '').trim();
   const pairs = clean.split(/[;\n|]/);
   const result = [];
   pairs.forEach(pair => {
     const parts = pair.trim().split(',');
     if (parts.length >= 2) {
-      const lt = parseFloat(parts[0].trim());
-      const ln = parseFloat(parts[1].trim());
-      if (!isNaN(lt) && !isNaN(ln)) result.push([lt, ln]);
+      let lt = parseFloat(parts[0].trim().replace(',', '.'));
+      let ln = parseFloat(parts[1].trim().replace(',', '.'));
+      if (!isNaN(lt) && !isNaN(ln)) {
+        if (!parts[0].includes('.') && Math.abs(lt) > 1000) lt /= 1000000;
+        if (!parts[1].includes('.') && Math.abs(ln) > 1000) ln /= 1000000;
+        result.push([lt, ln]);
+      }
     }
   });
   return result;
