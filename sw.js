@@ -3,7 +3,7 @@
  * PERUMDAM Amerta Toraya
  */
 
-const CACHE_NAME = 'spam-landorundun-v7';
+const CACHE_NAME = 'spam-landorundun-v8';
 
 const STATIC_ASSETS = [
   './',

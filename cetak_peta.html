@@ -218,6 +218,13 @@
       justify-content: center;
     }
 
+    .topografi-container.preparing-print {
+      width: 980px !important;
+      max-width: 980px !important;
+      height: 650px !important;
+      transition: none !important;
+    }
+
     .topografi-container {
       width: 100%;
       max-width: 1300px;
@@ -637,10 +644,16 @@
         height: 100% !important;
       }
 
+      /* Sembunyikan tombol zoom & skala bawaan leaflet saat dicetak */
+      .leaflet-control-zoom,
+      .leaflet-control-scale {
+        display: none !important;
+      }
+
       .legend-column {
-        width: 255px !important;
-        min-width: 255px !important;
-        max-width: 255px !important;
+        width: 245px !important;
+        min-width: 245px !important;
+        max-width: 245px !important;
         height: 100% !important;
         max-height: 196mm !important;
         border-left: none !important;
@@ -702,7 +715,7 @@
       <button type="button" class="btn btn-fit" onclick="zoomFitAllCustomerPoints()" title="Paskan peta mengapit semua koordinat pelanggan dan jalur pipa">
         <span>🎯</span> Paskan Titik &amp; Pipa
       </button>
-      <button type="button" class="btn btn-print" onclick="window.print()" title="Cetak atau simpan peta ke dokumen PDF">
+      <button type="button" class="btn btn-print" onclick="prepareAndPrintPdf()" title="Cetak atau simpan peta ke dokumen PDF">
         <span>🖨️</span> Cetak Peta (PDF)
       </button>
     </div>
@@ -1673,9 +1686,119 @@
     /* ------------------------------------------------------------
        Sinkronisasi ukuran peta saat dialog cetak printer dibuka
     ------------------------------------------------------------ */
+        /* ------------------------------------------------------------
+       Persiapan dan Eksekusi Cetak Peta ke PDF (A4 Landscape)
+       Menjamin 100% Seluruh Titik Pelanggan & Jalur Pipa Masuk Cetakan
+    ------------------------------------------------------------ */
+    let isPreparingPrint = false;
+
+    function prepareAndPrintPdf() {
+      if (!printMap || isPreparingPrint) return;
+      isPreparingPrint = true;
+
+      const btnPrint = document.querySelector('.btn-print');
+      const originalBtnHtml = btnPrint ? btnPrint.innerHTML : '';
+      if (btnPrint) {
+        btnPrint.innerHTML = '<span>⏳</span> Menyiapkan Peta...';
+        btnPrint.style.opacity = '0.75';
+        btnPrint.disabled = true;
+      }
+
+      // Kumpulkan layer titik pelanggan dan layer rute pipa
+      const activeLayers = [];
+      if (markersLayer && markersLayer.getLayers().length > 0) activeLayers.push(markersLayer);
+      if (pipesLayer && pipesLayer.getLayers().length > 0) activeLayers.push(pipesLayer);
+
+      const container = document.querySelector('.topografi-container');
+      if (container) {
+        container.classList.add('preparing-print');
+      }
+
+      // Beri Leaflet kesempatan menyesuaikan container ke aspek rasio pas A4
+      setTimeout(() => {
+        printMap.invalidateSize();
+
+        if (activeLayers.length > 0) {
+          const combinedGroup = L.featureGroup(activeLayers);
+          const bounds = combinedGroup.getBounds();
+
+          if (bounds.isValid()) {
+            // Berikan padding yang aman (kiri, kanan, atas, bawah) agar titik pinggir tidak mepet
+            printMap.fitBounds(bounds, {
+              paddingTopLeft: [35, 35],
+              paddingBottomRight: [35, 35],
+              animate: false
+            });
+          }
+        }
+
+        // Hitung ulang skala peta otomatis untuk proporsi cetak
+        calculateAndDisplayScale();
+
+        // Jeda 600ms agar browser dan Leaflet memuat seluruh tile satelit baru
+        setTimeout(() => {
+          window.print();
+
+          // Reset status setelah dialog print tertutup / selesai
+          setTimeout(() => {
+            finishPrintMode(container, btnPrint, originalBtnHtml);
+          }, 400);
+        }, 600);
+      }, 100);
+    }
+
+    function finishPrintMode(container, btnPrint, originalBtnHtml) {
+      if (container) {
+        container.classList.remove('preparing-print');
+      }
+      if (btnPrint) {
+        btnPrint.innerHTML = originalBtnHtml || '<span>🖨️</span> Cetak Peta (PDF)';
+        btnPrint.style.opacity = '1';
+        btnPrint.disabled = false;
+      }
+      isPreparingPrint = false;
+
+      setTimeout(() => {
+        if (printMap) {
+          printMap.invalidateSize();
+          zoomFitAllCustomerPoints();
+        }
+      }, 150);
+    }
+
+    // Tangani pintasan keyboard Ctrl + P
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        prepareAndPrintPdf();
+      }
+    });
+
+    // Tangani event afterprint dari browser
+    window.addEventListener('afterprint', () => {
+      const container = document.querySelector('.topografi-container');
+      const btnPrint = document.querySelector('.btn-print');
+      finishPrintMode(container, btnPrint);
+    });
+
+    // Sinkronisasi sebelum cetak jika dipanggil dari menu native browser
     window.addEventListener('beforeprint', () => {
       if (printMap) {
         printMap.invalidateSize();
+        const activeLayers = [];
+        if (markersLayer && markersLayer.getLayers().length > 0) activeLayers.push(markersLayer);
+        if (pipesLayer && pipesLayer.getLayers().length > 0) activeLayers.push(pipesLayer);
+        if (activeLayers.length > 0) {
+          const combinedGroup = L.featureGroup(activeLayers);
+          const bounds = combinedGroup.getBounds();
+          if (bounds.isValid()) {
+            printMap.fitBounds(bounds, {
+              paddingTopLeft: [30, 30],
+              paddingBottomRight: [30, 30],
+              animate: false
+            });
+          }
+        }
         calculateAndDisplayScale();
       }
     });
