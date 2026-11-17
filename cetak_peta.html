@@ -1119,20 +1119,30 @@
         const polyRaw = row.polygon || row.polygon_coords || '';
         const polygonCoords = parsePolygonCoordinates(polyRaw);
 
+        const authSession = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+        const isAdmin = authSession && authSession.role === 'admin';
+
         // Konten popup informasi pelanggan
         const popupContent = `
-          <div style="font-size: 12px; line-height: 1.45; min-width: 180px;">
+          <div style="font-size: 12px; line-height: 1.45; min-width: 195px;">
             <div style="font-size: 13px; font-weight: 800; color: #0284c7; margin-bottom: 3px;">
-              #${noUrut}. ${row.nama || 'Calon Pelanggan'}
+              #${noUrut}. ${escapeHtml(row.nama || 'Calon Pelanggan')}
             </div>
-            <div style="color: #334155; margin-bottom: 2px;">📍 ${row.alamat || 'Toraja Utara'}</div>
-            <div style="color: #059669; font-weight: 600; margin-bottom: 2px;">📋 ${row.klasifikasi || row.peruntukan || 'Rumah Tangga'}</div>
-            ${(row.sumber || row.petugas) ? `<div style="color: #0284c7; font-size: 11px; font-weight: 600; margin-bottom: 2px;">👤 Petugas: ${escapeHtml(row.sumber || row.petugas)}</div>` : ''}
-            ${row.whatsapp ? `<div style="color: #2563eb; font-size: 11px; margin-bottom: 2px;">📞 ${row.whatsapp}</div>` : ''}
+            <div style="color: #334155; margin-bottom: 2px;">📍 ${escapeHtml(row.alamat || 'Toraja Utara')}</div>
+            <div style="color: #059669; font-weight: 600; margin-bottom: 2px;">📋 ${escapeHtml(row.klasifikasi || row.peruntukan || 'Rumah Tangga')}</div>
+            ${(row.sumber || row.petugas) ? `<div style="color: #0284c7; font-size: 11px; font-weight: 600; margin-bottom: 2px;">👤 Petugas: <strong>${escapeHtml(row.sumber || row.petugas)}</strong></div>` : ''}
+            ${row.whatsapp ? `<div style="color: #2563eb; font-size: 11px; margin-bottom: 2px;">📞 ${escapeHtml(row.whatsapp)}</div>` : ''}
             ${polygonCoords.length >= 3 ? `<div style="color: #dc2626; font-size: 11px; font-weight: 700; margin-bottom: 2px;">🏠 Bidang Atap (${polygonCoords.length} Sudut Arsiran)</div>` : ''}
             <div style="font-family: monospace; font-size: 10px; color: #64748b; margin-top: 4px; border-top: 1px dashed #cbd5e1; padding-top: 3px;">
               ${!isNaN(lat) && !isNaN(lng) ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : ''}
             </div>
+            ${isAdmin ? `
+              <div style="margin-top: 8px; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+                <button type="button" onclick="openAdminEditModalFromPrint(${index})" style="width: 100%; background: #0284c7; color: #ffffff; border: none; border-radius: 6px; padding: 6px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 1px 3px rgba(2,132,199,0.3); transition: all 0.15s ease;">
+                  <span>✏️</span> Edit Data Pelanggan Ini
+                </button>
+              </div>
+            ` : ''}
           </div>
         `;
 
@@ -1148,6 +1158,12 @@
           });
 
           roofPolygon.bindPopup(popupContent);
+          if (isAdmin) {
+            roofPolygon.on('dblclick', function(e) {
+              L.DomEvent.stopPropagation(e);
+              openAdminEditModalFromPrint(index);
+            });
+          }
           markersLayer.addLayer(roofPolygon);
 
           // Masukkan seluruh titik sudut atap agar fitBounds mengapit bidang bangunan secara utuh
@@ -1182,6 +1198,12 @@
           });
 
           marker.bindPopup(popupContent);
+          if (isAdmin) {
+            marker.on('dblclick', function(e) {
+              L.DomEvent.stopPropagation(e);
+              openAdminEditModalFromPrint(index);
+            });
+          }
           markersLayer.addLayer(marker);
         }
       });
@@ -1953,6 +1975,222 @@
         loadRealtimeData();
       }, 350);
     });
+  </script>
+  <!-- Modal Edit Pelanggan Khusus Admin di Cetak Peta -->
+  <div id="printMapEditModal" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.7);z-index:99999;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:#ffffff;border-radius:14px;max-width:540px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 45px rgba(0,0,0,0.35);overflow:hidden;animation:popIn 0.2s ease;">
+      <!-- Header -->
+      <div style="padding:14px 18px;background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%);color:#ffffff;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:20px;">✏️</span>
+          <div>
+            <h3 style="font-size:15px;font-weight:800;margin:0;" id="printModalTitle">Edit Data Pelanggan</h3>
+            <span style="font-size:11px;opacity:0.9;">Edit langsung dari penandaan / arsiran peta</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeAdminEditModalFromPrint()" style="background:rgba(255,255,255,0.2);border:none;color:#ffffff;font-size:18px;width:30px;height:30px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+
+      <!-- Body / Form Fields -->
+      <div style="flex:1;overflow-y:auto;padding:16px 18px;">
+        <input type="hidden" id="printEditIndex" />
+        <input type="hidden" id="printEditRowIndex" />
+
+        <!-- Info Petugas Survey Asli (Terkunci) -->
+        <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+          <div style="font-size:10.5px;font-weight:800;color:#0369a1;text-transform:uppercase;letter-spacing:0.5px;">Petugas Survey yang Mendata:</div>
+          <div style="font-size:13.5px;font-weight:800;color:#0c4a6e;margin-top:2px;" id="printEditPetugasNama">-</div>
+          <div style="font-size:11px;color:#0284c7;margin-top:3px;">🔒 Nama petugas survey dikunci dan tidak akan berubah saat data diperbarui.</div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Nama Lengkap Pelanggan *</label>
+          <input type="text" id="printEditNama" style="width:100%;padding:8px 10px;font-size:12.5px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;" />
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Nomor KTP / NIK</label>
+            <input type="text" id="printEditNik" style="width:100%;padding:8px 10px;font-size:12.5px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">No. WhatsApp</label>
+            <input type="text" id="printEditWa" style="width:100%;padding:8px 10px;font-size:12.5px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;" />
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Alamat Lengkap *</label>
+          <textarea id="printEditAlamat" rows="2" style="width:100%;padding:8px 10px;font-size:12.5px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Peruntukan Bangunan</label>
+            <select id="printEditPeruntukan" style="width:100%;padding:8px 10px;font-size:12px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;background:#fff;">
+              <option value="Rumah Tinggal">Rumah Tinggal</option>
+              <option value="Niaga / Ruko">Niaga / Ruko</option>
+              <option value="Kantor / Instansi Pemerintah">Kantor / Instansi Pemerintah</option>
+              <option value="Tempat Ibadah / Fasum">Tempat Ibadah / Fasum</option>
+              <option value="Sekolah / Pendidikan">Sekolah / Pendidikan</option>
+              <option value="Sosial Khusus">Sosial Khusus</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Klasifikasi Pelanggan</label>
+            <select id="printEditKlasifikasi" style="width:100%;padding:8px 10px;font-size:12px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;background:#fff;">
+              <option value="Rumah Tangga A">Rumah Tangga A</option>
+              <option value="Rumah Tangga B">Rumah Tangga B</option>
+              <option value="Rumah Tangga C">Rumah Tangga C</option>
+              <option value="Sosial A">Sosial A</option>
+              <option value="Sosial B">Sosial B</option>
+              <option value="Instansi Pemerintah">Instansi Pemerintah</option>
+              <option value="Niaga Kecil">Niaga Kecil</option>
+              <option value="Niaga Besar">Niaga Besar</option>
+              <option value="Industri">Industri</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Latitude</label>
+            <input type="text" id="printEditLat" style="width:100%;padding:7px 9px;font-size:11.5px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;font-family:monospace;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Longitude</label>
+            <input type="text" id="printEditLng" style="width:100%;padding:7px 9px;font-size:11.5px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;font-family:monospace;" />
+          </div>
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:4px;">Koordinat Poligon Atap</label>
+          <input type="text" id="printEditPoly" style="width:100%;padding:7px 9px;font-size:11px;border:1.5px solid #cbd5e1;border-radius:6px;box-sizing:border-box;font-family:monospace;" />
+        </div>
+      </div>
+
+      <!-- Footer Buttons -->
+      <div style="padding:12px 18px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" onclick="closeAdminEditModalFromPrint()" style="padding:7px 16px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-weight:700;color:#475569;cursor:pointer;">
+          Batal
+        </button>
+        <button type="button" id="btnSavePrintEdit" onclick="saveAdminEditFromPrint()" style="padding:7px 18px;background:#0284c7;border:1px solid #0369a1;border-radius:6px;font-size:12px;font-weight:700;color:#ffffff;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+          <span>💾</span> Simpan Perubahan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentPrintEditCustomer = null;
+
+    function openAdminEditModalFromPrint(index) {
+      const row = allData[index];
+      if (!row) return;
+
+      currentPrintEditCustomer = row;
+
+      document.getElementById('printEditIndex').value = index;
+      document.getElementById('printEditRowIndex').value = row.rowIndex || (index + 2);
+
+      const noUrut = row.no || (index + 1);
+      document.getElementById('printModalTitle').textContent = `Edit Data Pelanggan #${noUrut} — ${row.nama || 'Pelanggan'}`;
+      document.getElementById('printEditPetugasNama').textContent = row.sumber || row.petugas || 'Surveyor';
+
+      document.getElementById('printEditNama').value = row.nama || '';
+      document.getElementById('printEditNik').value = row.nik || '';
+      document.getElementById('printEditWa').value = row.whatsapp || '';
+      document.getElementById('printEditAlamat').value = row.alamat || '';
+
+      const selPeruntukan = document.getElementById('printEditPeruntukan');
+      if (selPeruntukan) {
+        selPeruntukan.value = row.peruntukan || 'Rumah Tinggal';
+      }
+      const selKlasifikasi = document.getElementById('printEditKlasifikasi');
+      if (selKlasifikasi) {
+        selKlasifikasi.value = row.klasifikasi || 'Rumah Tangga C';
+      }
+
+      const rawLat = (row.latitude !== undefined && row.latitude !== '') ? row.latitude : row.lat;
+      const rawLng = (row.longitude !== undefined && row.longitude !== '') ? row.longitude : row.lng;
+      document.getElementById('printEditLat').value = rawLat || '';
+      document.getElementById('printEditLng').value = rawLng || '';
+      document.getElementById('printEditPoly').value = row.polygon || row.polygon_coords || '';
+
+      document.getElementById('printMapEditModal').style.display = 'flex';
+    }
+
+    function closeAdminEditModalFromPrint() {
+      const modal = document.getElementById('printMapEditModal');
+      if (modal) modal.style.display = 'none';
+      currentPrintEditCustomer = null;
+    }
+
+    async function saveAdminEditFromPrint() {
+      if (!currentPrintEditCustomer) return;
+
+      const btnSave = document.getElementById('btnSavePrintEdit');
+      const nama = document.getElementById('printEditNama').value.trim();
+      if (!nama) {
+        alert("Nama lengkap pelanggan wajib diisi!");
+        document.getElementById('printEditNama').focus();
+        return;
+      }
+
+      btnSave.disabled = true;
+      btnSave.innerHTML = '<span>⏳</span> Menyimpan...';
+
+      const rowIndex = document.getElementById('printEditRowIndex').value;
+      const originalPetugas = currentPrintEditCustomer.sumber || currentPrintEditCustomer.petugas || 'Surveyor';
+
+      const body = new URLSearchParams({
+        action: 'update',
+        role: 'admin',
+        petugas_nama: 'Admin',
+        rowIndex: rowIndex,
+        nama: nama,
+        nik: document.getElementById('printEditNik').value.trim(),
+        whatsapp: document.getElementById('printEditWa').value.trim(),
+        alamat: document.getElementById('printEditAlamat').value.trim(),
+        peruntukan_bangunan: document.getElementById('printEditPeruntukan').value,
+        klasifikasi_pelanggan: document.getElementById('printEditKlasifikasi').value,
+        latitude: document.getElementById('printEditLat').value.trim(),
+        longitude: document.getElementById('printEditLng').value.trim(),
+        polygon_coords: document.getElementById('printEditPoly').value.trim(),
+        sumber_data: originalPetugas, // NAMA PETUGAS SURVEY ASLI TIDAK BERUBAH!
+        sumber: originalPetugas,
+        petugas: originalPetugas
+      });
+
+      try {
+        const res = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
+        const json = await res.json();
+        if (json.status === 'success') {
+          alert(`✅ Data pelanggan "${nama}" berhasil diperbarui!\n(Nama petugas survey tetap: "${originalPetugas}")`);
+          
+          currentPrintEditCustomer.nama = nama;
+          currentPrintEditCustomer.nik = document.getElementById('printEditNik').value.trim();
+          currentPrintEditCustomer.whatsapp = document.getElementById('printEditWa').value.trim();
+          currentPrintEditCustomer.alamat = document.getElementById('printEditAlamat').value.trim();
+          currentPrintEditCustomer.peruntukan = document.getElementById('printEditPeruntukan').value;
+          currentPrintEditCustomer.klasifikasi = document.getElementById('printEditKlasifikasi').value;
+          currentPrintEditCustomer.latitude = document.getElementById('printEditLat').value.trim();
+          currentPrintEditCustomer.longitude = document.getElementById('printEditLng').value.trim();
+          currentPrintEditCustomer.polygon = document.getElementById('printEditPoly').value.trim();
+          currentPrintEditCustomer.sumber = originalPetugas;
+
+          closeAdminEditModalFromPrint();
+          updateMapMarkers(allData);
+        } else {
+          alert('❌ Gagal simpan: ' + json.message);
+        }
+      } catch (err) {
+        alert('❌ Koneksi gagal saat menyimpan perubahan.');
+      } finally {
+        btnSave.disabled = false;
+        btnSave.innerHTML = '<span>💾</span> Simpan Perubahan';
+      }
+    }
   </script>
 </body>
 </html>

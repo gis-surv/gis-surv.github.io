@@ -42,7 +42,11 @@ const ROLE_RULES = {
 function getAuthSession() {
   try {
     const raw = sessionStorage.getItem(AUTH_KEY) || localStorage.getItem(AUTH_KEY);
-    return raw ? JSON.parse(raw) : null;
+    const session = raw ? JSON.parse(raw) : null;
+    if (session && session.role === 'admin') {
+      session.petugas_nama = 'Administrator';
+    }
+    return session;
   } catch (e) {
     return null;
   }
@@ -103,11 +107,15 @@ async function authenticateUser(username, password, petugasNama) {
       const role = (json.role || 'public').toLowerCase();
       const roleConfig = ROLE_RULES[role] || ROLE_RULES.public;
 
-      const savedPetugas = localStorage.getItem('saved_petugas_nama') || '';
-      const finalPetugas = namaPetugas || (role === 'survey' ? (savedPetugas || 'Petugas Surveyor') : (json.user || user));
-
-      if (finalPetugas && role === 'survey') {
+      let finalPetugas = '';
+      if (role === 'admin') {
+        finalPetugas = 'Administrator';
+      } else if (role === 'survey') {
+        const savedPetugas = localStorage.getItem('saved_petugas_nama') || '';
+        finalPetugas = (namaPetugas || savedPetugas || 'Petugas Surveyor').trim();
         localStorage.setItem('saved_petugas_nama', finalPetugas);
+      } else {
+        finalPetugas = 'Publikasi / Umum';
       }
 
       const session = {
@@ -221,7 +229,7 @@ function customizeNavbarByRole(session) {
         </button>
       ` : ''}
       <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;background:#f8fafc;padding:4px 10px;border-radius:20px;border:1px solid #e2e8f0;">
-        <span style="font-weight:700;color:#0f172a;" title="Pengguna aktif: ${session.petugas_nama || session.username}">👤 ${session.petugas_nama || session.username}</span>
+        <span style="font-weight:700;color:#0f172a;" title="Pengguna aktif: ${role === 'admin' ? 'Administrator' : (session.petugas_nama || session.username)}">👤 ${role === 'admin' ? 'Administrator' : (session.petugas_nama || session.username)}</span>
         <span style="font-size:10px;font-weight:800;background:${roleConfig.badgeColor};color:#fff;padding:2px 7px;border-radius:10px;letter-spacing:0.3px;">
           ${roleConfig.label.toUpperCase()}
         </span>

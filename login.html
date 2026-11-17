@@ -462,7 +462,8 @@
 
       const user = document.getElementById('usernameInput').value.trim();
       const pass = document.getElementById('passwordInput').value.trim();
-      const petugasNama = (document.getElementById('petugasNamaInput').value || '').trim();
+      const rawPetugas = (document.getElementById('petugasNamaInput').value || '').trim();
+      const petugasNama = user.toLowerCase() === 'survey' ? rawPetugas : '';
       const btn  = document.getElementById('btnSubmit');
 
       if (!user || !pass) {

@@ -716,16 +716,20 @@ document.addEventListener('DOMContentLoaded', function () {
     statusMsg.style.display = "none";
 
     const formData = new FormData(form);
-    // Pastikan sumber data / nama petugas selalu terisi
-    formData.set('sumber_data', activePetugasName || (inputSumberData ? inputSumberData.value : 'Surveyor'));
-    formData.set('petugas_nama', activePetugasName || (inputSumberData ? inputSumberData.value : 'Surveyor'));
-    formData.set('role', currentRole);
-
-    // Jika sedang dalam Mode Edit, set action 'update' dan rowIndex
+    // Jika sedang dalam Mode Edit, pertahankan nama petugas survey asli yang mendata
     if (editingCustomerRow) {
       formData.set('action', 'update');
       formData.set('rowIndex', editingCustomerRow.rowIndex);
+      const originalPetugas = editingCustomerRow.sumber || editingCustomerRow.petugas || editingCustomerRow.sumber_data || activePetugasName || 'Surveyor';
+      formData.set('sumber_data', originalPetugas);
+      formData.set('petugas_nama', originalPetugas);
+      formData.set('sumber', originalPetugas);
+      formData.set('petugas', originalPetugas);
+    } else {
+      formData.set('sumber_data', activePetugasName || (inputSumberData ? inputSumberData.value : 'Surveyor'));
+      formData.set('petugas_nama', activePetugasName || (inputSumberData ? inputSumberData.value : 'Surveyor'));
     }
+    formData.set('role', currentRole);
 
     fetch(scriptUrl, {
       method: 'POST',

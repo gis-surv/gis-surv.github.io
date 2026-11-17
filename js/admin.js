@@ -117,7 +117,7 @@ function doLogout() {
 function showPanel(username) {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('adminPanel').style.display  = 'block';
-  document.getElementById('loggedUser').textContent    = username;
+  document.getElementById('loggedUser').textContent    = (username && username.toLowerCase() === 'admin') ? 'Administrator' : username;
   loadAdminData();
 }
 
@@ -252,9 +252,6 @@ function renderCustomerTable(rows) {
         <div class="petugas-badge-pill" title="Petugas Surveyor / Sumber Data: ${escHtml(petugasName || 'Belum diisi')}">
           <span class="petugas-icon">📋</span>
           <span class="petugas-name">${escHtml(petugasName || 'Tanpa Petugas')}</span>
-          <button type="button" class="btn-petugas-inline-edit" onclick="event.stopPropagation(); openQuickPetugasModal(${row.rowIndex})" title="Ubah / Ganti Nama Petugas Survey">
-            ✏️ Ganti
-          </button>
         </div>
       </td>
       <td class="td-truncate" style="font-family:monospace;font-size:11px">${escHtml(row.nik)||'—'}</td>
@@ -539,14 +536,17 @@ function renderEditMapReferences(currentRow) {
   if (Array.isArray(allRows) && allRows.length > 0) {
     allRows.forEach(r => {
       // Lewati pelanggan yang sedang diedit (karena ditangani oleh editPolyLayer & editMarker)
-      if (currentRow && r.rowIndex === currentRow.rowIndex) return;
+      if (currentRow && String(r.rowIndex) === String(currentRow.rowIndex)) return;
 
-      let rLat = parseFloat(String(r.latitude || '').replace(',', '.'));
-      let rLng = parseFloat(String(r.longitude || '').replace(',', '.'));
+      let rawLat = (r.latitude !== undefined && r.latitude !== '') ? r.latitude : r.lat;
+      let rawLng = (r.longitude !== undefined && r.longitude !== '') ? r.longitude : r.lng;
+      let rLat = parseFloat(String(rawLat || '').replace(/^['"=]+/, '').trim().replace(',', '.'));
+      let rLng = parseFloat(String(rawLng || '').replace(/^['"=]+/, '').trim().replace(',', '.'));
+      if (rLat > 0 && rLat <= 10) rLat = -rLat; // Koreksi latitude Toraja
       if (Math.abs(rLat) > 1000) rLat /= 1000000;
       if (Math.abs(rLng) > 1000) rLng /= 1000000;
 
-      const polyRaw = r.polygon || '';
+      const polyRaw = r.polygon || r.poligon || r.polygon_coords || '';
       const polyCoords = parsePolyStr(polyRaw);
 
       const neighborTooltip = `<strong>#${r.no}. ${escHtml(r.nama || 'Pelanggan')}</strong><br>${escHtml(r.alamat || '-')}<br><span style="color:#059669;font-size:10px;">📋 ${escHtml(r.klasifikasi || 'Rumah Tangga')}</span>`;
@@ -556,10 +556,10 @@ function renderEditMapReferences(currentRow) {
         const neighborRoof = L.polygon(polyCoords, {
           className: 'roof-hatched-polygon',
           color: '#ef4444',
-          weight: 1.8,
+          weight: 2,
           fillColor: '#ef4444',
-          fillOpacity: 0.35,
-          dashArray: '3, 3'
+          fillOpacity: 0.38,
+          dashArray: '4, 4'
         });
 
         neighborRoof.bindTooltip(neighborTooltip, { direction: 'top', sticky: true });
@@ -584,17 +584,17 @@ function renderEditMapReferences(currentRow) {
       if (!isNaN(rLat) && !isNaN(rLng)) {
         const neighborIcon = L.divIcon({
           className: 'custom-pin-wrapper',
-          html: `<div class="marker-number-pin" style="width:20px;height:20px;font-size:10px;background:#ef4444 !important;opacity:0.88;box-shadow:0 1px 4px rgba(0,0,0,0.4);" title="#${r.no}. ${escHtml(r.nama)}">${r.no}</div>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10]
+          html: `<div class="marker-number-pin" style="width:22px;height:22px;font-size:10.5px;background:#ef4444 !important;color:#fff !important;border:2px solid #fff !important;border-radius:50% !important;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 2px 5px rgba(0,0,0,0.45);cursor:pointer;" title="#${r.no}. ${escHtml(r.nama)}">${r.no}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
         });
 
         const neighborMarker = L.marker([rLat, rLng], {
           icon: neighborIcon,
-          zIndexOffset: 100
+          zIndexOffset: 200
         });
 
-        neighborMarker.bindTooltip(neighborTooltip, { direction: 'top', offset: [0, -10] });
+        neighborMarker.bindTooltip(neighborTooltip, { direction: 'top', offset: [0, -11] });
 
         // Teruskan event klik ke peta saat mode gambar aktif
         neighborMarker.on('click', function(ev) {
@@ -666,8 +666,13 @@ function toggleEditNeighbors() {
 
 function loadCustomerOnEditMap(row) {
   const hasPoly = row.polygon && String(row.polygon).trim() !== '';
-  let lat       = parseFloat(String(row.latitude || '').replace(',', '.'));
-  let lng       = parseFloat(String(row.longitude || '').replace(',', '.'));
+  let rawLat = (row.latitude !== undefined && row.latitude !== '') ? row.latitude : row.lat;
+  let rawLng = (row.longitude !== undefined && row.longitude !== '') ? row.longitude : row.lng;
+  let lat = parseFloat(String(rawLat || '').replace(/^['"=]+/, '').trim().replace(',', '.'));
+  let lng = parseFloat(String(rawLng || '').replace(/^['"=]+/, '').trim().replace(',', '.'));
+  if (lat > 0 && lat <= 10) lat = -lat; // Koreksi latitude Toraja Utara
+  if (Math.abs(lat) > 1000) lat /= 1000000;
+  if (Math.abs(lng) > 1000) lng /= 1000000;
 
   if (hasPoly) {
     const coords = parsePolyStr(row.polygon);
@@ -736,7 +741,10 @@ async function saveCustomerEdit() {
   const newWa          = document.getElementById('editWa').value.trim();
   const newAlamat      = document.getElementById('editAlamat').value.trim();
   const editSumberEl   = document.getElementById('editSumber');
-  const newSumber      = editSumberEl ? editSumberEl.value.trim() : '';
+  const foundRow       = allRows.find(r => String(r.rowIndex) === String(rowIndex));
+  // Kunci nama petugas: gunakan petugas asli dari data, jangan diubah
+  const originalPetugas= (foundRow ? (foundRow.sumber || foundRow.petugas || foundRow.sumber_data) : '') || (editSumberEl ? editSumberEl.value.trim() : '') || 'Surveyor';
+  const newSumber      = originalPetugas;
   const newPeruntukan  = document.getElementById('editPeruntukan').value;
   const newKlasifikasi = document.getElementById('editKlasifikasi').value;
   const newLat         = document.getElementById('editLat').value.trim();
@@ -1711,9 +1719,10 @@ function parsePolyStr(str) {
   pairs.forEach(pair => {
     const parts = pair.trim().split(',');
     if (parts.length >= 2) {
-      let lt = parseFloat(parts[0].trim().replace(',', '.'));
-      let ln = parseFloat(parts[1].trim().replace(',', '.'));
+      let lt = parseFloat(parts[0].trim().replace(/^['"=]+/, '').replace(',', '.'));
+      let ln = parseFloat(parts[1].trim().replace(/^['"=]+/, '').replace(',', '.'));
       if (!isNaN(lt) && !isNaN(ln)) {
+        if (lt > 0 && lt <= 10) lt = -lt; // Pastikan minus untuk Toraja Utara
         if (!parts[0].includes('.') && Math.abs(lt) > 1000) lt /= 1000000;
         if (!parts[1].includes('.') && Math.abs(ln) > 1000) ln /= 1000000;
         result.push([lt, ln]);
@@ -2264,16 +2273,21 @@ function renderFacilityReferenceLayers() {
       const polyCoords = parsePolyStr(row.poligon);
 
       const popupHtml = `
-        <div style="font-size:12px;line-height:1.45;min-width:180px;">
+        <div style="font-size:12px;line-height:1.45;min-width:185px;">
           <div style="font-size:13px;font-weight:800;color:#0284c7;margin-bottom:3px;">
             #${noUrut}. ${escHtml(row.nama || 'Calon Pelanggan')}
           </div>
           <div style="color:#334155;margin-bottom:2px;">📍 ${escHtml(row.alamat || 'Toraja Utara')}</div>
           <div style="color:#059669;font-weight:600;margin-bottom:2px;">📋 ${escHtml(row.klasifikasi || row.peruntukan || 'Rumah Tangga')}</div>
-          ${row.sumber ? `<div style="color:#0284c7;font-size:11px;font-weight:600;margin-bottom:2px;">👤 Petugas: ${escHtml(row.sumber)}</div>` : ''}
+          ${row.sumber ? `<div style="color:#0284c7;font-size:11px;font-weight:600;margin-bottom:2px;">👤 Petugas: <strong>${escHtml(row.sumber)}</strong></div>` : ''}
           ${polyCoords.length >= 3 ? `<div style="color:#dc2626;font-size:11px;font-weight:700;margin-bottom:2px;">🏠 Bidang Atap (${polyCoords.length} Titik Sudut)</div>` : ''}
           <div style="font-family:monospace;font-size:10px;color:#64748b;margin-top:4px;border-top:1px dashed #cbd5e1;padding-top:3px;">
             ${!isNaN(lat) && !isNaN(lng) ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : ''}
+          </div>
+          <div style="margin-top:8px;border-top:1px dashed #cbd5e1;padding-top:6px;">
+            <button type="button" onclick="openEditModalByRowIndex(${row.rowIndex})" style="width:100%;background:#0284c7;color:#ffffff;border:none;border-radius:6px;padding:6px 10px;font-size:11.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:0 1px 3px rgba(2,132,199,0.3);">
+              <span>✏️</span> Edit Data Pelanggan Ini
+            </button>
           </div>
         </div>
       `;
@@ -2289,6 +2303,10 @@ function renderFacilityReferenceLayers() {
           smoothFactor: 1
         });
         roofPoly.bindPopup(popupHtml);
+        roofPoly.on('dblclick', function(e) {
+          L.DomEvent.stopPropagation(e);
+          openEditModalByRowIndex(row.rowIndex);
+        });
         facilityCustLayer.addLayer(roofPoly);
 
         // Jika titik lat/lng kosong, hitung pusat bidang atap
@@ -2315,6 +2333,10 @@ function renderFacilityReferenceLayers() {
           zIndexOffset: 1000
         });
         pinMarker.bindPopup(popupHtml);
+        pinMarker.on('dblclick', function(e) {
+          L.DomEvent.stopPropagation(e);
+          openEditModalByRowIndex(row.rowIndex);
+        });
         facilityCustLayer.addLayer(pinMarker);
 
         facilityCustomerMarkersMap[String(noUrut)] = pinMarker;
