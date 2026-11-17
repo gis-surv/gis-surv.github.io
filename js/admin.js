@@ -22,6 +22,11 @@ let editPolyLayer   = null;
 let editPreviewLine = null;
 let editPolyDots    = [];
 let editPolyPoints  = [];
+let editNeighborsLayer = null;
+let editPipesLayer     = null;
+let editFacLayer       = null;
+let editNeighborsVisible = true;
+let currentEditingRow  = null;
 
 // Pipe Map State
 let pipeMap             = null;
@@ -315,7 +320,17 @@ function openEditModal(row) {
           editMap.invalidateSize();
         }
         resetEditMapState();
+        currentEditingRow = row;
+        renderEditMapReferences(row);
         loadCustomerOnEditMap(row);
+
+        // Muat pipa & fasilitas jika belum ada di memori
+        if (allPipes.length === 0) {
+          loadPipes().then(() => { if (editMap && currentEditingRow) renderEditMapReferences(currentEditingRow); });
+        }
+        if (allFacilities.length === 0) {
+          loadFacilities().then(() => { if (editMap && currentEditingRow) renderEditMapReferences(currentEditingRow); });
+        }
       } catch (errMap) {
         console.warn('Gagal render peta edit modal:', errMap);
       }
@@ -351,6 +366,11 @@ function initEditMap() {
     layers: [editLayerSat],
     zoomControl: true
   });
+
+  // Layer referensi penandaan & arsiran atap tetangga yang sudah ada
+  editNeighborsLayer = L.featureGroup().addTo(editMap);
+  editPipesLayer     = L.featureGroup().addTo(editMap);
+  editFacLayer       = L.featureGroup().addTo(editMap);
 
   editMap.on('click', onEditMapClick);
   setTimeout(() => editMap.invalidateSize(), 100);
@@ -447,8 +467,8 @@ function finishEditPolygon() {
 
   if (editPolyLayer) { editMap.removeLayer(editPolyLayer); editPolyLayer = null; }
   editPolyLayer = L.polygon(editPolyPoints, {
-    color: '#dc2626', weight: 2,
-    fillColor: '#ef4444', fillOpacity: 0.4
+    color: '#2563eb', weight: 3,
+    fillColor: '#3b82f6', fillOpacity: 0.45
   }).addTo(editMap);
 
   let sumLat = 0, sumLng = 0;
@@ -503,6 +523,147 @@ function resetEditMapState() {
   setEditStatus('Klik peta untuk memindahkan titik koordinat', 'point');
 }
 
+// ─── TAMPILKAN PENANDAAN & ARSIRAN LAIN YANG SUDAH ADA DI PETA EDIT ───
+function renderEditMapReferences(currentRow) {
+  if (!editMap) return;
+
+  if (!editNeighborsLayer) editNeighborsLayer = L.featureGroup().addTo(editMap);
+  if (!editPipesLayer)     editPipesLayer     = L.featureGroup().addTo(editMap);
+  if (!editFacLayer)       editFacLayer       = L.featureGroup().addTo(editMap);
+
+  editNeighborsLayer.clearLayers();
+  editPipesLayer.clearLayers();
+  editFacLayer.clearLayers();
+
+  // 1. Tampilkan Pelanggan Lain (Titik Penanda & Poligon Arsiran Atap Tetangga)
+  if (Array.isArray(allRows) && allRows.length > 0) {
+    allRows.forEach(r => {
+      // Lewati pelanggan yang sedang diedit (karena ditangani oleh editPolyLayer & editMarker)
+      if (currentRow && r.rowIndex === currentRow.rowIndex) return;
+
+      let rLat = parseFloat(String(r.latitude || '').replace(',', '.'));
+      let rLng = parseFloat(String(r.longitude || '').replace(',', '.'));
+      if (Math.abs(rLat) > 1000) rLat /= 1000000;
+      if (Math.abs(rLng) > 1000) rLng /= 1000000;
+
+      const polyRaw = r.polygon || '';
+      const polyCoords = parsePolyStr(polyRaw);
+
+      const neighborTooltip = `<strong>#${r.no}. ${escHtml(r.nama || 'Pelanggan')}</strong><br>${escHtml(r.alamat || '-')}<br><span style="color:#059669;font-size:10px;">📋 ${escHtml(r.klasifikasi || 'Rumah Tangga')}</span>`;
+
+      // A. Arsiran Atap Rumah Tetangga
+      if (polyCoords.length >= 3) {
+        const neighborRoof = L.polygon(polyCoords, {
+          className: 'roof-hatched-polygon',
+          color: '#ef4444',
+          weight: 1.8,
+          fillColor: '#ef4444',
+          fillOpacity: 0.35,
+          dashArray: '3, 3'
+        });
+
+        neighborRoof.bindTooltip(neighborTooltip, { direction: 'top', sticky: true });
+
+        // Teruskan event klik ke peta agar tidak menghalangi saat admin menandai sudut atap baru
+        neighborRoof.on('click', function(ev) {
+          onEditMapClick(ev);
+        });
+
+        editNeighborsLayer.addLayer(neighborRoof);
+
+        // Jika lat/lng kosong, hitung pusat atap
+        if (isNaN(rLat) || isNaN(rLng)) {
+          let sLat = 0, sLng = 0;
+          polyCoords.forEach(p => { sLat += p[0]; sLng += p[1]; });
+          rLat = sLat / polyCoords.length;
+          rLng = sLng / polyCoords.length;
+        }
+      }
+
+      // B. Penanda Nomor Urut Pelanggan Tetangga
+      if (!isNaN(rLat) && !isNaN(rLng)) {
+        const neighborIcon = L.divIcon({
+          className: 'custom-pin-wrapper',
+          html: `<div class="marker-number-pin" style="width:20px;height:20px;font-size:10px;background:#ef4444 !important;opacity:0.88;box-shadow:0 1px 4px rgba(0,0,0,0.4);" title="#${r.no}. ${escHtml(r.nama)}">${r.no}</div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+
+        const neighborMarker = L.marker([rLat, rLng], {
+          icon: neighborIcon,
+          zIndexOffset: 100
+        });
+
+        neighborMarker.bindTooltip(neighborTooltip, { direction: 'top', offset: [0, -10] });
+
+        // Teruskan event klik ke peta saat mode gambar aktif
+        neighborMarker.on('click', function(ev) {
+          onEditMapClick(ev);
+        });
+
+        editNeighborsLayer.addLayer(neighborMarker);
+      }
+    });
+  }
+
+  // 2. Tampilkan Jalur Pipa Distribusi Sekitar sebagai Referensi
+  if (Array.isArray(allPipes) && allPipes.length > 0) {
+    allPipes.forEach(pipe => {
+      const coords = parsePolyStr(pipe.koordinat);
+      if (coords.length >= 2) {
+        const color = pipe.warna || '#2563eb';
+        const pipeLine = L.polyline(coords, {
+          color: color,
+          weight: 3.5,
+          opacity: 0.75,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+        pipeLine.bindTooltip(`🔧 <strong>${escHtml(pipe.nama)}</strong> (${formatPipeLength(pipe.panjang)})`, { sticky: true });
+        pipeLine.on('click', function(ev) { onEditMapClick(ev); });
+        editPipesLayer.addLayer(pipeLine);
+      }
+    });
+  }
+
+  // 3. Tampilkan Fasilitas Pengolahan IPA Sekitar sebagai Referensi
+  if (Array.isArray(allFacilities) && allFacilities.length > 0) {
+    allFacilities.forEach(fac => {
+      const coords = parsePolyStr(fac.koordinat);
+      if (coords.length >= 3) {
+        const color = fac.warna || '#16a34a';
+        const facPoly = L.polygon(coords, {
+          color: color,
+          weight: 2.5,
+          fillColor: color,
+          fillOpacity: 0.25,
+          dashArray: '4, 4'
+        });
+        facPoly.bindTooltip(`🏭 <strong>${escHtml(fac.nama)}</strong>`, { sticky: true });
+        facPoly.on('click', function(ev) { onEditMapClick(ev); });
+        editFacLayer.addLayer(facPoly);
+      }
+    });
+  }
+}
+
+function toggleEditNeighbors() {
+  if (!editMap || !editNeighborsLayer) return;
+  editNeighborsVisible = !editNeighborsVisible;
+  const btn = document.getElementById('btnToggleNeighbors');
+  if (editNeighborsVisible) {
+    if (!editMap.hasLayer(editNeighborsLayer)) editMap.addLayer(editNeighborsLayer);
+    if (editPipesLayer && !editMap.hasLayer(editPipesLayer)) editMap.addLayer(editPipesLayer);
+    if (editFacLayer && !editMap.hasLayer(editFacLayer)) editMap.addLayer(editFacLayer);
+    if (btn) btn.classList.add('active');
+  } else {
+    if (editMap.hasLayer(editNeighborsLayer)) editMap.removeLayer(editNeighborsLayer);
+    if (editPipesLayer && editMap.hasLayer(editPipesLayer)) editMap.removeLayer(editPipesLayer);
+    if (editFacLayer && editMap.hasLayer(editFacLayer)) editMap.removeLayer(editFacLayer);
+    if (btn) btn.classList.remove('active');
+  }
+}
+
 function loadCustomerOnEditMap(row) {
   const hasPoly = row.polygon && String(row.polygon).trim() !== '';
   let lat       = parseFloat(String(row.latitude || '').replace(',', '.'));
@@ -513,8 +674,8 @@ function loadCustomerOnEditMap(row) {
     if (coords.length >= 3) {
       editPolyPoints = coords;
       editPolyLayer  = L.polygon(coords, {
-        color: '#dc2626', weight: 2,
-        fillColor: '#ef4444', fillOpacity: 0.4
+        color: '#2563eb', weight: 3,
+        fillColor: '#3b82f6', fillOpacity: 0.45
       }).addTo(editMap);
 
       if (!isNaN(lat) && !isNaN(lng)) {
