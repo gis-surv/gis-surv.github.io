@@ -40,9 +40,28 @@ let pipeMapInitialCenterSet = false;
 const PIPE_PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#be185d', '#ea580c'];
 let pipeColorIdx = 0;
 
+// Facility / Bangunan Pengolahan Map State
+let facilityMap             = null;
+let facilityLayerSat        = null;
+let facilityLayerRoad       = null;
+let facilityLayerTopo       = null;
+let facilityDrawingActive   = false;
+let facilityCurrentPoints   = [];
+let facilityPreviewLine     = null;
+let facilityCurrentPolygon  = null;
+let facilityNodeMarkers     = [];
+let allFacilities           = [];
+let facilityLayers          = {}; // id/rowIndex -> L.polygon
+let facilityCustLayer       = null;
+let facilityPipeLayer       = null;
+let facilityFacLayer        = null;
+let facilitySearchedMarker  = null;
+let facilityMapInitialCenterSet = false;
+
 // ─── INISIALISASI ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  const saved = sessionStorage.getItem(SESSION_KEY);
+  const authSession = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+  const saved = (authSession && authSession.role === 'admin' && (authSession.username || 'admin')) || sessionStorage.getItem(SESSION_KEY);
   if (saved) {
     showPanel(saved);
   }
@@ -99,14 +118,21 @@ function showPanel(username) {
 
 // ─── TAB SWITCHING ─────────────────────────────────────────
 function switchTab(tab) {
-  const isCust = tab === 'customers';
+  const isCust  = tab === 'customers';
+  const isPipes = tab === 'pipes';
+  const isFac   = tab === 'facilities';
+
   document.getElementById('tabBtnCustomers').classList.toggle('active', isCust);
-  document.getElementById('tabBtnPipes').classList.toggle('active', !isCust);
+  document.getElementById('tabBtnPipes').classList.toggle('active', isPipes);
+  const btnFac = document.getElementById('tabBtnFacilities');
+  if (btnFac) btnFac.classList.toggle('active', isFac);
 
-  document.getElementById('sectionCustomers').style.display = isCust ? 'block' : 'none';
-  document.getElementById('sectionPipes').style.display     = !isCust ? 'block' : 'none';
+  document.getElementById('sectionCustomers').style.display  = isCust ? 'block' : 'none';
+  document.getElementById('sectionPipes').style.display      = isPipes ? 'block' : 'none';
+  const secFac = document.getElementById('sectionFacilities');
+  if (secFac) secFac.style.display                          = isFac ? 'block' : 'none';
 
-  if (!isCust) {
+  if (isPipes) {
     if (!pipeMap) {
       setTimeout(() => {
         initPipeMap();
@@ -114,6 +140,22 @@ function switchTab(tab) {
       }, 100);
     } else {
       setTimeout(() => pipeMap.invalidateSize(), 150);
+    }
+  } else if (isFac) {
+    if (!facilityMap) {
+      setTimeout(async () => {
+        initFacilityMap();
+        if (allRows.length === 0) await loadAdminData();
+        if (allPipes.length === 0) await loadPipes();
+        await loadFacilities();
+        renderFacilityReferenceLayers();
+        zoomFitAllFacilityMap(true);
+      }, 100);
+    } else {
+      setTimeout(() => {
+        facilityMap.invalidateSize();
+        renderFacilityReferenceLayers();
+      }, 150);
     }
   }
 }
@@ -128,6 +170,7 @@ async function loadAdminData() {
     const json = await res.json();
     if (json.status === 'success') {
       allRows = Array.isArray(json.data) ? json.data : [];
+      populatePetugasDatalist();
       filterTable();
       updateCustomerStats();
     } else {
@@ -153,6 +196,7 @@ function filterTable() {
   filteredRows = q
     ? allRows.filter(r =>
         String(r.nama || '').toLowerCase().includes(q) ||
+        String(r.sumber || r.petugas || r.sumber_data || '').toLowerCase().includes(q) ||
         String(r.nik || '').toLowerCase().includes(q) ||
         String(r.alamat || '').toLowerCase().includes(q) ||
         String(r.whatsapp || '').toLowerCase().includes(q) ||
@@ -191,12 +235,22 @@ function renderCustomerTable(rows) {
       ? `<span style="font-family:monospace;font-size:10.5px;color:#64748b">${rawLat.toFixed(5)}, ${rawLng.toFixed(5)}</span>`
       : '<span style="color:#cbd5e1">—</span>';
 
+    const petugasName = (row.sumber || row.petugas || row.sumber_data || '').trim();
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="td-no">${row.no}</td>
-      <td class="td-nama td-truncate" title="${escHtml(row.nama)}">
-        <strong>${escHtml(row.nama)||'—'}</strong>
-        ${row.sumber ? `<div style="font-size:10px;color:#0284c7;font-weight:600;margin-top:2px;" title="Sumber Data / Petugas">📋 ${escHtml(row.sumber)}</div>` : ''}
+      <td class="td-nama" style="max-width:180px;">
+        <div style="font-weight:700;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(row.nama)}">
+          ${escHtml(row.nama)||'—'}
+        </div>
+        <div class="petugas-badge-pill" title="Petugas Surveyor / Sumber Data: ${escHtml(petugasName || 'Belum diisi')}">
+          <span class="petugas-icon">📋</span>
+          <span class="petugas-name">${escHtml(petugasName || 'Tanpa Petugas')}</span>
+          <button type="button" class="btn-petugas-inline-edit" onclick="event.stopPropagation(); openQuickPetugasModal(${row.rowIndex})" title="Ubah / Ganti Nama Petugas Survey">
+            ✏️ Ganti
+          </button>
+        </div>
       </td>
       <td class="td-truncate" style="font-family:monospace;font-size:11px">${escHtml(row.nik)||'—'}</td>
       <td class="td-truncate">${escHtml(row.whatsapp)||'—'}</td>
@@ -243,6 +297,8 @@ function openEditModal(row) {
     document.getElementById('editNik').value          = row.nik         || '';
     document.getElementById('editWa').value           = row.whatsapp    || '';
     document.getElementById('editAlamat').value       = row.alamat      || '';
+    const editSumberEl = document.getElementById('editSumber');
+    if (editSumberEl) editSumberEl.value               = row.sumber || row.petugas || row.sumber_data || '';
     document.getElementById('editLat').value          = row.latitude    || '';
     document.getElementById('editLng').value          = row.longitude   || '';
     document.getElementById('editPolygon').value      = row.polygon     || '';
@@ -514,27 +570,60 @@ async function saveCustomerEdit() {
   btnSave.disabled    = true;
   btnSave.textContent = '⏳ Menyimpan...';
 
+  const newNama        = document.getElementById('editNama').value.trim();
+  const newNik         = document.getElementById('editNik').value.trim();
+  const newWa          = document.getElementById('editWa').value.trim();
+  const newAlamat      = document.getElementById('editAlamat').value.trim();
+  const editSumberEl   = document.getElementById('editSumber');
+  const newSumber      = editSumberEl ? editSumberEl.value.trim() : '';
+  const newPeruntukan  = document.getElementById('editPeruntukan').value;
+  const newKlasifikasi = document.getElementById('editKlasifikasi').value;
+  const newLat         = document.getElementById('editLat').value.trim();
+  const newLng         = document.getElementById('editLng').value.trim();
+  const newPoly        = document.getElementById('editPolygon').value.trim();
+
   const body = new URLSearchParams({
     action:                'update',
+    role:                  'admin',
+    petugas_nama:          'Admin',
     rowIndex,
-    nama:                  document.getElementById('editNama').value.trim(),
-    nik:                   document.getElementById('editNik').value.trim(),
-    whatsapp:              document.getElementById('editWa').value.trim(),
-    alamat:                document.getElementById('editAlamat').value.trim(),
-    peruntukan_bangunan:   document.getElementById('editPeruntukan').value,
-    klasifikasi_pelanggan: document.getElementById('editKlasifikasi').value,
-    latitude:              document.getElementById('editLat').value.trim(),
-    longitude:             document.getElementById('editLng').value.trim(),
-    polygon_coords:        document.getElementById('editPolygon').value.trim()
+    nama:                  newNama,
+    nik:                   newNik,
+    whatsapp:              newWa,
+    alamat:                newAlamat,
+    sumber_data:           newSumber,
+    sumber:                newSumber,
+    petugas:               newSumber,
+    peruntukan_bangunan:   newPeruntukan,
+    klasifikasi_pelanggan: newKlasifikasi,
+    latitude:              newLat,
+    longitude:             newLng,
+    polygon_coords:        newPoly
   });
 
   try {
     const res  = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
     const json = await res.json();
     if (json.status === 'success') {
-      showToast('✅ Data pelanggan berhasil diperbarui!', 'success');
+      showToast('✅ Data pelanggan & petugas survey berhasil diperbarui!', 'success');
+      const found = allRows.find(r => r.rowIndex == rowIndex);
+      if (found) {
+        found.nama        = newNama;
+        found.nik         = newNik;
+        found.whatsapp    = newWa;
+        found.alamat      = newAlamat;
+        found.sumber      = newSumber;
+        found.petugas     = newSumber;
+        found.sumber_data = newSumber;
+        found.peruntukan  = newPeruntukan;
+        found.klasifikasi = newKlasifikasi;
+        found.latitude    = newLat;
+        found.longitude   = newLng;
+        found.polygon     = newPoly;
+      }
       closeEditModal();
-      await loadAdminData();
+      filterTable();
+      populatePetugasDatalist();
     } else {
       showToast('❌ Gagal: ' + json.message, 'error');
     }
@@ -546,11 +635,312 @@ async function saveCustomerEdit() {
   }
 }
 
+// ─── MANAJEMEN & PENGGANTIAN NAMA PETUGAS SURVEY ───────────
+function populatePetugasDatalist() {
+  let datalist = document.getElementById('petugasDatalist');
+  if (!datalist) {
+    datalist = document.createElement('datalist');
+    datalist.id = 'petugasDatalist';
+    document.body.appendChild(datalist);
+  }
+  datalist.innerHTML = '';
+
+  const unique = getUniquePetugasList();
+  unique.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    datalist.appendChild(opt);
+  });
+}
+
+function getUniquePetugasList() {
+  const set = new Set();
+  allRows.forEach(r => {
+    const p = String(r.sumber || r.petugas || r.sumber_data || '').trim();
+    if (p) set.add(p);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'id'));
+}
+
+// Modal Cepat Ganti Petugas per Baris Data
+function openQuickPetugasModal(rowIndex) {
+  const row = (window.customerDataMap && window.customerDataMap[rowIndex]) || allRows.find(r => r.rowIndex === rowIndex);
+  if (!row) {
+    showToast('Data pelanggan tidak ditemukan', 'error');
+    return;
+  }
+  document.getElementById('quickPetugasRowIndex').value = row.rowIndex;
+  const currentPetugas = (row.sumber || row.petugas || row.sumber_data || '').trim();
+  const infoEl = document.getElementById('quickPetugasCustomerInfo');
+  if (infoEl) {
+    infoEl.textContent = `#${row.no} — ${row.nama || 'Tanpa Nama'} (${row.alamat || 'Alamat —'})`;
+  }
+
+  const inputEl = document.getElementById('quickPetugasInput');
+  if (inputEl) {
+    inputEl.value = currentPetugas;
+  }
+
+  renderQuickPetugasSuggestions(currentPetugas);
+
+  const modal = document.getElementById('quickPetugasModal');
+  if (modal) {
+    modal.classList.add('open');
+    setTimeout(() => {
+      if (inputEl) {
+        inputEl.focus();
+        inputEl.select();
+      }
+    }, 120);
+  }
+}
+
+function closeQuickPetugasModal() {
+  const modal = document.getElementById('quickPetugasModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function closeQuickPetugasModalOutside(ev) {
+  if (ev.target === document.getElementById('quickPetugasModal')) {
+    closeQuickPetugasModal();
+  }
+}
+
+function renderQuickPetugasSuggestions(currentPetugas) {
+  const container = document.getElementById('quickPetugasSuggestions');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const unique = getUniquePetugasList();
+  if (unique.length === 0) return;
+
+  const label = document.createElement('span');
+  label.style.color = '#64748b';
+  label.style.fontWeight = '700';
+  label.style.fontSize = '10.5px';
+  label.style.textTransform = 'uppercase';
+  label.style.letterSpacing = '0.3px';
+  label.textContent = 'Petugas Terdaftar:';
+  container.appendChild(label);
+
+  unique.forEach(name => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'petugas-chip';
+    chip.textContent = name;
+    if (name.toLowerCase() === currentPetugas.toLowerCase()) {
+      chip.style.borderColor = '#0284c7';
+      chip.style.background = '#e0f2fe';
+      chip.style.color = '#0284c7';
+    }
+    chip.onclick = () => {
+      const inputEl = document.getElementById('quickPetugasInput');
+      if (inputEl) {
+        inputEl.value = name;
+        inputEl.focus();
+      }
+    };
+    container.appendChild(chip);
+  });
+}
+
+async function saveQuickPetugas() {
+  const rowIndex = document.getElementById('quickPetugasRowIndex').value;
+  const row = (window.customerDataMap && window.customerDataMap[rowIndex]) || allRows.find(r => r.rowIndex == rowIndex);
+  if (!row) {
+    showToast('Data pelanggan tidak valid', 'error');
+    return;
+  }
+
+  const newPetugas = document.getElementById('quickPetugasInput').value.trim();
+  const currentPetugas = (row.sumber || row.petugas || row.sumber_data || '').trim();
+
+  if (newPetugas === currentPetugas) {
+    closeQuickPetugasModal();
+    return;
+  }
+
+  const btnSave = document.getElementById('btnSaveQuickPetugas');
+  btnSave.disabled = true;
+  btnSave.textContent = '⏳ Menyimpan...';
+
+  const body = new URLSearchParams({
+    action:                'update',
+    role:                  'admin',
+    petugas_nama:          'Admin',
+    rowIndex:              row.rowIndex,
+    nama:                  row.nama || '',
+    nik:                   row.nik || '',
+    whatsapp:              row.whatsapp || '',
+    alamat:                row.alamat || '',
+    sumber_data:           newPetugas,
+    sumber:                newPetugas,
+    petugas:               newPetugas,
+    peruntukan_bangunan:   row.peruntukan || '',
+    klasifikasi_pelanggan: row.klasifikasi || '',
+    latitude:              row.latitude || '',
+    longitude:             row.longitude || '',
+    polygon_coords:        row.polygon || ''
+  });
+
+  try {
+    const res = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
+    const json = await res.json();
+    if (json.status === 'success') {
+      showToast(`✅ Nama petugas survey berhasil diubah menjadi "${newPetugas || 'Tanpa Petugas'}"!`, 'success');
+      row.sumber = newPetugas;
+      row.petugas = newPetugas;
+      row.sumber_data = newPetugas;
+      closeQuickPetugasModal();
+      filterTable();
+      populatePetugasDatalist();
+    } else {
+      showToast('❌ Gagal mengubah petugas: ' + (json.message || 'Error server'), 'error');
+    }
+  } catch (err) {
+    showToast('❌ Koneksi gagal saat mengubah nama petugas.', 'error');
+  } finally {
+    btnSave.disabled = false;
+    btnSave.textContent = '💾 Simpan Perubahan';
+  }
+}
+
+// Modal Ganti Petugas Survey Secara Massal
+function openBulkPetugasModal() {
+  const selectEl = document.getElementById('bulkPetugasOldSelect');
+  selectEl.innerHTML = '<option value="">-- Pilih Petugas Survey Saat Ini --</option>';
+
+  const counts = {};
+  allRows.forEach(r => {
+    const p = String(r.sumber || r.petugas || r.sumber_data || '').trim();
+    const key = p || '__KOSONG__';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  Object.keys(counts).sort((a, b) => a.localeCompare(b, 'id')).forEach(key => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = key === '__KOSONG__' 
+      ? `(Tanpa Petugas / Belum Diisi) — ${counts[key]} data`
+      : `${key} — ${counts[key]} data`;
+    selectEl.appendChild(opt);
+  });
+
+  document.getElementById('bulkPetugasNewInput').value = '';
+  document.getElementById('bulkPetugasMatchInfo').textContent = 'Pilih petugas di atas untuk melihat jumlah data yang terpengaruh.';
+  document.getElementById('bulkPetugasModal').classList.add('open');
+}
+
+function closeBulkPetugasModal() {
+  const modal = document.getElementById('bulkPetugasModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function closeBulkPetugasModalOutside(ev) {
+  if (ev.target === document.getElementById('bulkPetugasModal')) {
+    closeBulkPetugasModal();
+  }
+}
+
+function updateBulkPetugasCount() {
+  const selected = document.getElementById('bulkPetugasOldSelect').value;
+  const infoEl = document.getElementById('bulkPetugasMatchInfo');
+  if (!selected) {
+    infoEl.textContent = 'Pilih petugas di atas untuk melihat jumlah data yang terpengaruh.';
+    return;
+  }
+
+  const matches = allRows.filter(r => {
+    const p = String(r.sumber || r.petugas || r.sumber_data || '').trim();
+    return selected === '__KOSONG__' ? !p : p.toLowerCase() === selected.toLowerCase();
+  });
+
+  infoEl.innerHTML = `Terdeteksi <strong>${matches.length} baris data pelanggan</strong> dengan nama petugas ini.`;
+}
+
+async function saveBulkPetugas() {
+  const selected = document.getElementById('bulkPetugasOldSelect').value;
+  const newName  = document.getElementById('bulkPetugasNewInput').value.trim();
+
+  if (!selected) {
+    showToast('Pilih nama petugas lama terlebih dahulu', 'error');
+    return;
+  }
+  if (!newName) {
+    showToast('Masukkan nama petugas pengganti', 'error');
+    return;
+  }
+
+  const targets = allRows.filter(r => {
+    const p = String(r.sumber || r.petugas || r.sumber_data || '').trim();
+    return selected === '__KOSONG__' ? !p : p.toLowerCase() === selected.toLowerCase();
+  });
+
+  if (targets.length === 0) {
+    showToast('Tidak ada data yang cocok untuk diperbarui', 'error');
+    return;
+  }
+
+  const displayNameOld = selected === '__KOSONG__' ? 'Tanpa Petugas' : selected;
+  if (!confirm(`Ganti nama petugas survey dari "${displayNameOld}" menjadi "${newName}" pada ${targets.length} data pelanggan?\n\nProses akan memperbarui setiap baris data di spreadsheet.`)) {
+    return;
+  }
+
+  const btnSave = document.getElementById('btnSaveBulkPetugas');
+  btnSave.disabled = true;
+  btnSave.textContent = `⏳ Memperbarui (0/${targets.length})...`;
+
+  let successCount = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const row = targets[i];
+    btnSave.textContent = `⏳ Memperbarui (${i + 1}/${targets.length})...`;
+
+    const body = new URLSearchParams({
+      action:                'update',
+      role:                  'admin',
+      petugas_nama:          'Admin',
+      rowIndex:              row.rowIndex,
+      nama:                  row.nama || '',
+      nik:                   row.nik || '',
+      whatsapp:              row.whatsapp || '',
+      alamat:                row.alamat || '',
+      sumber_data:           newName,
+      sumber:                newName,
+      petugas:               newName,
+      peruntukan_bangunan:   row.peruntukan || '',
+      klasifikasi_pelanggan: row.klasifikasi || '',
+      latitude:              row.latitude || '',
+      longitude:             row.longitude || '',
+      polygon_coords:        row.polygon || ''
+    });
+
+    try {
+      const res = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
+      const json = await res.json();
+      if (json.status === 'success') {
+        row.sumber = newName;
+        row.petugas = newName;
+        row.sumber_data = newName;
+        successCount++;
+      }
+    } catch (e) {
+      console.warn(`Gagal update baris #${row.no}:`, e);
+    }
+  }
+
+  btnSave.disabled = false;
+  btnSave.textContent = '🔄 Terapkan Perubahan Massal';
+  closeBulkPetugasModal();
+  showToast(`✅ Berhasil memperbarui ${successCount} dari ${targets.length} data menjadi petugas "${newName}"!`, 'success');
+  filterTable();
+  populatePetugasDatalist();
+}
+
 async function confirmDeleteCustomer(rowIndex, no, nama) {
   if (!confirm(`Hapus data pelanggan #${no} — "${nama}"?\n\nTindakan ini tidak dapat dibatalkan.`)) return;
 
   try {
-    const body = new URLSearchParams({ action: 'delete', rowIndex });
+    const body = new URLSearchParams({ action: 'delete', rowIndex, role: 'admin' });
     const res  = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
     const json = await res.json();
     if (json.status === 'success') {
@@ -1186,13 +1576,20 @@ function setEditStatus(msg, type) {
 }
 
 function setSelectValue(sel, val) {
+  if (!sel) return;
   sel.value = '';
   if (!val) return;
-  for (let o of sel.options) { if (o.value === val) { sel.value = val; return; } }
+  const cleanVal = String(val).trim();
+  for (let o of sel.options) {
+    if (o.value === cleanVal || o.value.toLowerCase() === cleanVal.toLowerCase()) {
+      sel.value = o.value;
+      return;
+    }
+  }
   const opt = document.createElement('option');
-  opt.value = opt.textContent = val;
+  opt.value = opt.textContent = cleanVal;
   sel.appendChild(opt);
-  sel.value = val;
+  sel.value = cleanVal;
 }
 
 let toastTimer = null;
@@ -1322,4 +1719,651 @@ function clearSearchedCoord() {
     searchedCoordMarker = null;
   }
 }
+
+// ─── TAB 3: BANGUNAN & FASILITAS PENGOLAHAN (IPA) ───────────
+function initFacilityMap() {
+  if (facilityMap) return;
+
+  facilityLayerSat  = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+    maxZoom: 21, subdomains: ['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+  });
+  facilityLayerRoad = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+    maxZoom: 21, subdomains: ['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
+  });
+  facilityLayerTopo = L.tileLayer('https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', {
+    maxZoom: 21, subdomains: ['mt0','mt1','mt2','mt3'], attribution: '© Google (Terrain)'
+  });
+
+  facilityMap = L.map('facilityMap', {
+    center: [TORAJA_LAT, TORAJA_LNG],
+    zoom: 17,
+    layers: [facilityLayerSat],
+    zoomControl: true
+  });
+
+  // Layer grup referensi penandaan (Pelanggan, Pipa, dan Fasilitas IPA)
+  facilityCustLayer = L.featureGroup().addTo(facilityMap);
+  facilityPipeLayer = L.featureGroup().addTo(facilityMap);
+  facilityFacLayer  = L.featureGroup().addTo(facilityMap);
+
+  facilityMap.on('click', onFacilityMapClick);
+  setTimeout(() => facilityMap.invalidateSize(), 150);
+}
+
+function switchFacilityLayer(mode) {
+  if (!facilityMap) return;
+  [facilityLayerSat, facilityLayerRoad, facilityLayerTopo].forEach(l => { try { facilityMap.removeLayer(l); } catch(e){} });
+  document.getElementById('layerBtnFacilitySat').classList.toggle('active',  mode === 'satellite');
+  document.getElementById('layerBtnFacilityRoad').classList.toggle('active', mode === 'roadmap');
+  document.getElementById('layerBtnFacilityTopo').classList.toggle('active', mode === 'terrain');
+  if (mode === 'satellite') facilityLayerSat.addTo(facilityMap);
+  else if (mode === 'roadmap') facilityLayerRoad.addTo(facilityMap);
+  else facilityLayerTopo.addTo(facilityMap);
+}
+
+function startDrawingFacility() {
+  if (!facilityMap) initFacilityMap();
+
+  facilityDrawingActive = true;
+  facilityCurrentPoints = [];
+  clearFacilityDrawingLayers();
+
+  document.getElementById('facilityDrawingPanel').classList.add('active');
+  document.getElementById('drawFacilityName').value = 'Lokasi Rencana Instalasi Pengolahan Air';
+  document.getElementById('drawFacilityCategory').value = 'Instalasi Pengolahan Air (IPA)';
+  document.getElementById('drawFacilityStatus').value = 'Rencana';
+  document.getElementById('drawFacilityCapacity').value = '';
+  document.getElementById('metricFacilityArea').textContent = '~0 m²';
+  document.getElementById('metricFacilityPoints').textContent = '0 sudut';
+  document.getElementById('facilityDrawHint').textContent = '📍 Klik di peta citra satelit untuk menandai sudut ke-1 bidang tanah/bangunan IPA.';
+
+  setFacilityStatus('Mode digitasi aktif: Klik sudut-sudut bidang lahan/bangunan pengolahan (min. 3 titik)', 'point');
+}
+
+function onFacilityMapClick(ev) {
+  if (!facilityDrawingActive) return;
+
+  const { lat, lng } = ev.latlng;
+  facilityCurrentPoints.push([lat, lng]);
+
+  const dotIcon = L.divIcon({
+    className: 'leaflet-div-icon',
+    html: `<div style="width:12px;height:12px;background:#16a34a;border:2px solid #ffffff;border-radius:50%;box-shadow:0 2px 5px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#fff;font-size:8px;font-weight:800;">${facilityCurrentPoints.length}</div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7]
+  });
+  const dotMarker = L.marker([lat, lng], { icon: dotIcon }).addTo(facilityMap);
+  facilityNodeMarkers.push(dotMarker);
+
+  if (facilityPreviewLine) {
+    facilityMap.removeLayer(facilityPreviewLine);
+    facilityPreviewLine = null;
+  }
+  if (facilityCurrentPolygon) {
+    facilityMap.removeLayer(facilityCurrentPolygon);
+    facilityCurrentPolygon = null;
+  }
+
+  const color = document.getElementById('drawFacilityColor').value || '#16a34a';
+
+  if (facilityCurrentPoints.length === 2) {
+    facilityPreviewLine = L.polyline(facilityCurrentPoints, {
+      color: color, weight: 2.5, dashArray: '6, 6'
+    }).addTo(facilityMap);
+    document.getElementById('facilityDrawHint').textContent = '📍 Tandai sudut ke-3 untuk mulai membentuk bidang luas area pengolahan.';
+  } else if (facilityCurrentPoints.length >= 3) {
+    facilityCurrentPolygon = L.polygon(facilityCurrentPoints, {
+      color: color, weight: 2.5, fillColor: color, fillOpacity: 0.35
+    }).addTo(facilityMap);
+
+    const areaM2 = calculateFacilityArea(facilityCurrentPoints);
+    document.getElementById('metricFacilityArea').textContent = `~${areaM2.toLocaleString('id-ID')} m²`;
+    document.getElementById('facilityDrawHint').textContent = `✅ ${facilityCurrentPoints.length} sudut ditandai (~${areaM2.toLocaleString('id-ID')} m²). Klik "Selesai Poligon" atau "Simpan Fasilitas".`;
+  }
+
+  document.getElementById('metricFacilityPoints').textContent = `${facilityCurrentPoints.length} sudut`;
+  setFacilityStatus(`✏️ Menandai sudut ke-${facilityCurrentPoints.length} bidang fasilitas`, 'polygon');
+}
+
+function calculateFacilityArea(points) {
+  if (!points || points.length < 3) return 0;
+  const earthRadius = 6378137;
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    let j = (i + 1) % points.length;
+    let p1 = points[i];
+    let p2 = points[j];
+    let lat1 = p1[0] * Math.PI / 180;
+    let lat2 = p2[0] * Math.PI / 180;
+    let dLng = (p2[1] - p1[1]) * Math.PI / 180;
+    area += dLng * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+  area = Math.abs(area * earthRadius * earthRadius / 4.0);
+  return Math.round(area);
+}
+
+function calculateFacilityCenter(points) {
+  if (!points || points.length === 0) return null;
+  let sumLat = 0, sumLng = 0;
+  points.forEach(p => { sumLat += p[0]; sumLng += p[1]; });
+  return [sumLat / points.length, sumLng / points.length];
+}
+
+function finishDrawingFacility() {
+  if (facilityCurrentPoints.length < 3) {
+    showToast('Minimal 3 titik sudut untuk membentuk poligon bidang fasilitas', 'error');
+    return;
+  }
+  const areaM2 = calculateFacilityArea(facilityCurrentPoints);
+  document.getElementById('metricFacilityArea').textContent = `~${areaM2.toLocaleString('id-ID')} m²`;
+  setFacilityStatus(`🏠 Poligon bidang selesai: ~${areaM2.toLocaleString('id-ID')} m². Silakan klik "Simpan Fasilitas ke Sheet".`, 'polygon');
+  showToast(`✅ Poligon bidang selesai (~${areaM2.toLocaleString('id-ID')} m²). Tekan Simpan untuk menyimpan ke Google Sheets!`, 'info');
+}
+
+function cancelDrawingFacility() {
+  facilityDrawingActive = false;
+  facilityCurrentPoints = [];
+  clearFacilityDrawingLayers();
+  document.getElementById('facilityDrawingPanel').classList.remove('active');
+  setFacilityStatus('Siap. Klik "+ Tandai Baru" untuk mendigitasi lokasi atau bangunan pengolahan air.');
+}
+
+function clearFacilityDrawingLayers() {
+  if (facilityPreviewLine) {
+    try { facilityMap.removeLayer(facilityPreviewLine); } catch(e){}
+    facilityPreviewLine = null;
+  }
+  if (facilityCurrentPolygon) {
+    try { facilityMap.removeLayer(facilityCurrentPolygon); } catch(e){}
+    facilityCurrentPolygon = null;
+  }
+  facilityNodeMarkers.forEach(m => { try { facilityMap.removeLayer(m); } catch(e){} });
+  facilityNodeMarkers = [];
+}
+
+async function saveFacility() {
+  const nama = document.getElementById('drawFacilityName').value.trim();
+  if (!nama) {
+    showToast('Nama Fasilitas / Bangunan wajib diisi', 'error');
+    document.getElementById('drawFacilityName').focus();
+    return;
+  }
+
+  if (facilityCurrentPoints.length < 3) {
+    showToast('Tandai minimal 3 titik sudut untuk membentuk bidang lahan/bangunan pengolahan', 'error');
+    return;
+  }
+
+  const btnSave = document.getElementById('btnSaveFacility');
+  btnSave.disabled = true;
+  btnSave.textContent = '⏳ Menyimpan ke Sheet...';
+
+  const kategori  = document.getElementById('drawFacilityCategory').value;
+  const status    = document.getElementById('drawFacilityStatus').value;
+  const kapasitas = document.getElementById('drawFacilityCapacity').value.trim();
+  const warna     = document.getElementById('drawFacilityColor').value || '#16a34a';
+  const areaM2    = calculateFacilityArea(facilityCurrentPoints);
+  const center    = calculateFacilityCenter(facilityCurrentPoints);
+  const centerStr = center ? `${center[0].toFixed(6)}, ${center[1].toFixed(6)}` : '';
+  const coordStr  = facilityCurrentPoints.map(p => `${p[0].toFixed(7)},${p[1].toFixed(7)}`).join(';');
+
+  const body = new URLSearchParams({
+    action:      'save_facility',
+    nama:        nama,
+    kategori:    kategori,
+    luas_m2:     areaM2 ? `${areaM2.toLocaleString('id-ID')} m²` : '0 m²',
+    kapasitas:   kapasitas || '-',
+    titik_pusat: centerStr,
+    koordinat:   coordStr,
+    warna:       warna,
+    status:      status,
+    catatan:     `Luas: ${areaM2} m² • ${facilityCurrentPoints.length} sudut bidang`
+  });
+
+  try {
+    const res  = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
+    const json = await res.json();
+    if (json.status === 'success') {
+      showToast(`✅ "${nama}" berhasil disimpan ke Sheet Fasilitas!`, 'success');
+      cancelDrawingFacility();
+      await loadFacilities();
+    } else {
+      showToast('❌ Gagal simpan: ' + json.message, 'error');
+    }
+  } catch (err) {
+    showToast('❌ Koneksi gagal saat menyimpan fasilitas ke server.', 'error');
+  } finally {
+    btnSave.disabled = false;
+    btnSave.textContent = '💾 Simpan Fasilitas ke Sheet';
+  }
+}
+
+async function loadFacilities() {
+  const scrollEl = document.getElementById('facilityListScroll');
+  if (scrollEl) {
+    scrollEl.innerHTML = '<div style="padding:16px;text-align:center;color:#64748b;"><span class="spinner"></span> Memuat data fasilitas...</div>';
+  }
+
+  try {
+    const res  = await fetch(CONFIG.SCRIPT_URL + '?action=get_facilities');
+    const json = await res.json();
+    if (json.status === 'success') {
+      allFacilities = Array.isArray(json.facilities) ? json.facilities : [];
+      renderFacilityList(allFacilities);
+      displayAllFacilitiesOnMap(allFacilities);
+    } else {
+      if (scrollEl) scrollEl.innerHTML = '<div style="padding:16px;color:#dc2626;">Gagal: ' + json.message + '</div>';
+    }
+  } catch (err) {
+    if (scrollEl) scrollEl.innerHTML = '<div style="padding:16px;color:#dc2626;">Koneksi gagal saat memuat fasilitas.</div>';
+  }
+}
+
+function renderFacilityList(facilities) {
+  const scrollEl = document.getElementById('facilityListScroll');
+  const badgeEl = document.getElementById('facilityCountBadge');
+  if (badgeEl) badgeEl.textContent = facilities.length;
+
+  if (!scrollEl) return;
+
+  if (facilities.length === 0) {
+    scrollEl.innerHTML = `
+      <div style="padding:30px 16px;text-align:center;color:#94a3b8;">
+        <div style="font-size:32px;margin-bottom:8px;">🏭</div>
+        <div style="font-size:12.5px;font-weight:600;">Belum ada bangunan pengolahan / fasilitas</div>
+        <div style="font-size:11px;margin-top:4px;">Klik "+ Tandai Baru" untuk menandai area IPA, reservoir, atau intake di peta</div>
+      </div>`;
+    return;
+  }
+
+  let html = '';
+  facilities.forEach(fac => {
+    const color = fac.warna || '#16a34a';
+    html += `
+      <div class="facility-card-item">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;font-weight:800;font-size:12.5px;color:#0f172a;">
+            <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0;"></span>
+            <span title="${escHtml(fac.nama)}">${escHtml(fac.nama)}</span>
+          </div>
+          <button type="button" class="btn-delete" style="padding:2px 8px;font-size:10.5px;" onclick="confirmDeleteFacility(${fac.rowIndex}, '${escHtml(fac.nama)}')">
+            🗑️ Hapus
+          </button>
+        </div>
+        <div>
+          <span class="facility-badge-cat">${escHtml(fac.kategori || 'IPA')}</span>
+          <span style="font-size:10px;font-weight:700;color:#64748b;margin-left:4px;">${escHtml(fac.status || 'Rencana')}</span>
+        </div>
+        <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #e2e8f0;padding-top:4px;font-size:11px;">
+          <span class="facility-area-text">📐 ${escHtml(fac.luas_m2 || '-')}</span>
+          <button type="button" class="btn-edit" style="padding:2px 8px;font-size:10.5px;" onclick="focusFacilityOnMap(${fac.id})">
+            🔍 Lihat di Peta
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  scrollEl.innerHTML = html;
+}
+
+function displayAllFacilitiesOnMap(facilities) {
+  if (!facilityMap) return;
+
+  if (facilityFacLayer) {
+    facilityFacLayer.clearLayers();
+  }
+  facilityLayers = {};
+
+  facilities.forEach(fac => {
+    if (!fac.koordinat) return;
+    const coords = fac.koordinat.split(';').map(pair => {
+      const parts = pair.split(',');
+      return [parseFloat(parts[0]), parseFloat(parts[1])];
+    }).filter(pt => !isNaN(pt[0]) && !isNaN(pt[1]));
+
+    if (coords.length >= 3) {
+      const color = fac.warna || '#16a34a';
+      const poly = L.polygon(coords, {
+        color: color,
+        weight: 3.5,
+        fillColor: color,
+        fillOpacity: 0.45,
+        dashArray: fac.status === 'Rencana' ? '6, 4' : null,
+        smoothFactor: 1
+      });
+
+      const popupContent = `
+        <div style="font-size:12px;line-height:1.45;min-width:180px;">
+          <div style="font-weight:800;color:${color};font-size:13px;margin-bottom:3px;border-bottom:1px solid #e2e8f0;padding-bottom:3px;">
+            🏭 ${escHtml(fac.nama)}
+          </div>
+          <div>Kategori: <strong>${escHtml(fac.kategori || 'IPA')}</strong></div>
+          <div>Luas Area: <strong>${escHtml(fac.luas_m2 || '-')}</strong></div>
+          ${fac.kapasitas && fac.kapasitas !== '-' ? `<div>Kapasitas: <strong>${escHtml(fac.kapasitas)}</strong></div>` : ''}
+          <div>Status: <span style="font-weight:700;color:#15803d;">${escHtml(fac.status || 'Rencana')}</span></div>
+        </div>
+      `;
+
+      poly.bindPopup(popupContent);
+
+      if (facilityFacLayer) {
+        facilityFacLayer.addLayer(poly);
+      } else {
+        poly.addTo(facilityMap);
+      }
+
+      // Label teks centroid fasilitas
+      try {
+        const center = poly.getBounds().getCenter();
+        const labelIcon = L.divIcon({
+          className: 'facility-center-label',
+          html: `
+            <div style="background:rgba(22,163,74,0.92);color:#ffffff;font-size:10px;font-weight:800;padding:2.5px 8px;border-radius:12px;border:1.5px solid #ffffff;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);display:inline-flex;align-items:center;gap:4px;transform:translate(-50%, -50%);cursor:pointer;">
+              <span>🏭</span> <span>${escHtml(fac.nama)}</span>
+            </div>
+          `,
+          iconSize: [0, 0]
+        });
+        const labelMarker = L.marker(center, { icon: labelIcon, zIndexOffset: 500 });
+        labelMarker.bindPopup(popupContent);
+        if (facilityFacLayer) facilityFacLayer.addLayer(labelMarker);
+      } catch(e){}
+
+      facilityLayers[fac.id] = poly;
+    }
+  });
+
+  if (!facilityMapInitialCenterSet) {
+    facilityMapInitialCenterSet = true;
+    zoomFitAllFacilityMap(true);
+  }
+}
+
+// ─── TAMPILKAN REFERENSI PELANGGAN & PIPA DI PETA FASILITAS (IPA) ───
+let facilityCustomerMarkersMap = {}; // mapping no/id -> marker
+
+function renderFacilityReferenceLayers() {
+  if (!facilityMap) return;
+  if (!facilityCustLayer || !facilityPipeLayer) return;
+
+  facilityCustLayer.clearLayers();
+  facilityPipeLayer.clearLayers();
+  facilityCustomerMarkersMap = {};
+
+  // 1. TAMPILKAN PELANGGAN (Atap Rumah + Pin Nomor Urut Merah Pas di Tengah)
+  if (Array.isArray(allRows) && allRows.length > 0) {
+    allRows.forEach((row, idx) => {
+      let lat = parseFloat(String(row.lat || '').replace(',', '.'));
+      let lng = parseFloat(String(row.lng || '').replace(',', '.'));
+      if (Math.abs(lat) > 1000) lat /= 1000000;
+      if (Math.abs(lng) > 1000) lng /= 1000000;
+
+      const noUrut = row.no || row.id || (idx + 1);
+      const polyCoords = parsePolyStr(row.poligon);
+
+      const popupHtml = `
+        <div style="font-size:12px;line-height:1.45;min-width:180px;">
+          <div style="font-size:13px;font-weight:800;color:#0284c7;margin-bottom:3px;">
+            #${noUrut}. ${escHtml(row.nama || 'Calon Pelanggan')}
+          </div>
+          <div style="color:#334155;margin-bottom:2px;">📍 ${escHtml(row.alamat || 'Toraja Utara')}</div>
+          <div style="color:#059669;font-weight:600;margin-bottom:2px;">📋 ${escHtml(row.klasifikasi || row.peruntukan || 'Rumah Tangga')}</div>
+          ${row.sumber ? `<div style="color:#0284c7;font-size:11px;font-weight:600;margin-bottom:2px;">👤 Petugas: ${escHtml(row.sumber)}</div>` : ''}
+          ${polyCoords.length >= 3 ? `<div style="color:#dc2626;font-size:11px;font-weight:700;margin-bottom:2px;">🏠 Bidang Atap (${polyCoords.length} Titik Sudut)</div>` : ''}
+          <div style="font-family:monospace;font-size:10px;color:#64748b;margin-top:4px;border-top:1px dashed #cbd5e1;padding-top:3px;">
+            ${!isNaN(lat) && !isNaN(lng) ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : ''}
+          </div>
+        </div>
+      `;
+
+      // Jika ada atap rumah poligon (>= 3 sudut), gambar bidang arsiran merah
+      if (polyCoords.length >= 3) {
+        const roofPoly = L.polygon(polyCoords, {
+          className: 'roof-hatched-polygon',
+          color: '#dc2626',
+          weight: 2,
+          fillColor: '#ef4444',
+          fillOpacity: 0.5,
+          smoothFactor: 1
+        });
+        roofPoly.bindPopup(popupHtml);
+        facilityCustLayer.addLayer(roofPoly);
+
+        // Jika titik lat/lng kosong, hitung pusat bidang atap
+        if (isNaN(lat) || isNaN(lng)) {
+          let sLat = 0, sLng = 0;
+          polyCoords.forEach(p => { sLat += p[0]; sLng += p[1]; });
+          lat = sLat / polyCoords.length;
+          lng = sLng / polyCoords.length;
+        }
+      }
+
+      // Pasang Nomor Urut Pin Merah di Centroid Titik
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const customIcon = L.divIcon({
+          className: 'custom-pin-wrapper',
+          html: `<div class="marker-number-pin">${noUrut}</div>`,
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+          popupAnchor: [0, -11]
+        });
+
+        const pinMarker = L.marker([lat, lng], {
+          icon: customIcon,
+          zIndexOffset: 1000
+        });
+        pinMarker.bindPopup(popupHtml);
+        facilityCustLayer.addLayer(pinMarker);
+
+        facilityCustomerMarkersMap[String(noUrut)] = pinMarker;
+      }
+    });
+  }
+
+  // 2. TAMPILKAN JALUR PIPA DISTRIBUSI SEBAGAI REFERENSI
+  if (Array.isArray(allPipes) && allPipes.length > 0) {
+    allPipes.forEach(pipe => {
+      const coords = parsePolyStr(pipe.koordinat);
+      if (coords.length >= 2) {
+        const color = pipe.warna || '#2563eb';
+        const polyline = L.polyline(coords, {
+          color: color,
+          weight: 4,
+          opacity: 0.85,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+
+        polyline.bindPopup(`
+          <div style="font-size:12px;line-height:1.45;min-width:180px;">
+            <div style="font-weight:800;color:${color};font-size:13px;margin-bottom:3px;">
+              🔧 ${escHtml(pipe.nama)}
+            </div>
+            <div>Diameter: <strong>${pipe.diameter ? pipe.diameter + '"' : '-'}</strong></div>
+            <div>Panjang: <strong>${formatPipeLength(pipe.panjang)}</strong></div>
+            ${pipe.elev_awal && pipe.elev_akhir ? `<div>Elevasi: ${pipe.elev_awal}m ➔ ${pipe.elev_akhir}m</div>` : ''}
+          </div>
+        `);
+        facilityPipeLayer.addLayer(polyline);
+
+        // Titik awal & titik akhir simpul
+        const startPt = coords[0];
+        const endPt   = coords[coords.length - 1];
+
+        const startNode = L.circleMarker(startPt, {
+          radius: 4.5, fillColor: '#22c55e', color: '#ffffff', weight: 1.5, opacity: 1, fillOpacity: 1
+        }).bindPopup(`<strong>Titik Awal:</strong> ${escHtml(pipe.nama)}`);
+
+        const endNode = L.circleMarker(endPt, {
+          radius: 4.5, fillColor: '#ef4444', color: '#ffffff', weight: 1.5, opacity: 1, fillOpacity: 1
+        }).bindPopup(`<strong>Titik Akhir:</strong> ${escHtml(pipe.nama)}`);
+
+        facilityPipeLayer.addLayer(startNode);
+        facilityPipeLayer.addLayer(endNode);
+      }
+    });
+  }
+}
+
+// ─── PUSATKAN SEMUA ELEMEN SPASIAL DI PETA FASILITAS (IPA) ───
+function zoomFitAllFacilityMap(isQuiet = false) {
+  if (!facilityMap) return;
+
+  const activeLayers = [];
+  if (facilityCustLayer && facilityCustLayer.getLayers().length > 0) activeLayers.push(facilityCustLayer);
+  if (facilityPipeLayer && facilityPipeLayer.getLayers().length > 0) activeLayers.push(facilityPipeLayer);
+  if (facilityFacLayer  && facilityFacLayer.getLayers().length > 0)  activeLayers.push(facilityFacLayer);
+
+  if (activeLayers.length === 0) {
+    if (!isQuiet) showToast('ℹ️ Belum ada objek penandaan (pelanggan, pipa, atau fasilitas) untuk dipusatkan', 'info');
+    return;
+  }
+
+  try {
+    const combinedGroup = L.featureGroup(activeLayers);
+    const bounds = combinedGroup.getBounds();
+    if (bounds.isValid()) {
+      facilityMap.fitBounds(bounds, { padding: [45, 45], maxZoom: 18 });
+      if (!isQuiet) {
+        showToast('🎯 Peta dipusatkan mengapit seluruh penandaan (Pelanggan, Pipa & Fasilitas IPA)', 'info');
+      }
+    }
+  } catch(err) {
+    console.warn("Gagal fitBounds facilityMap:", err);
+  }
+}
+
+// ─── CARI NOMOR PELANGGAN / KOORDINAT DI PETA FASILITAS ───
+function searchTargetOnFacilityMap() {
+  const input = document.getElementById('facilitySearchInput');
+  if (!input) return;
+  const raw = input.value.trim();
+  if (!raw) {
+    showToast('Ketik nomor urut pelanggan (misal: #389) atau koordinat lat, lng', 'info');
+    input.focus();
+    return;
+  }
+
+  // 1. Cek apakah mencari nomor urut pelanggan (misal: "#389" atau "389")
+  const numMatch = raw.replace(/^#/, '').trim();
+  if (/^\d+$/.test(numMatch) && facilityCustomerMarkersMap[numMatch]) {
+    const marker = facilityCustomerMarkersMap[numMatch];
+    const pos = marker.getLatLng();
+    facilityMap.flyTo(pos, 19, { animate: true, duration: 1.2 });
+    setTimeout(() => {
+      marker.openPopup();
+      showToast(`🎯 Menemukan Pelanggan #${numMatch}`, 'success');
+    }, 1250);
+    return;
+  }
+
+  // 2. Cek apakah mencari berdasarkan nama pelanggan
+  if (Array.isArray(allRows) && allRows.length > 0) {
+    const queryLower = raw.toLowerCase();
+    const foundIdx = allRows.findIndex(r => (r.nama && r.nama.toLowerCase().includes(queryLower)) || String(r.no) === numMatch);
+    if (foundIdx !== -1) {
+      const row = allRows[foundIdx];
+      const no = row.no || row.id || (foundIdx + 1);
+      if (facilityCustomerMarkersMap[String(no)]) {
+        const marker = facilityCustomerMarkersMap[String(no)];
+        const pos = marker.getLatLng();
+        facilityMap.flyTo(pos, 19, { animate: true, duration: 1.2 });
+        setTimeout(() => {
+          marker.openPopup();
+          showToast(`🎯 Menemukan Pelanggan #${no}: ${row.nama}`, 'success');
+        }, 1250);
+        return;
+      }
+    }
+  }
+
+  // 3. Cek apakah format koordinat latitude, longitude
+  const clean = raw.replace(/[()\[\]]/g, '').trim();
+  const parts = clean.split(/[,;\s]+/).map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+  if (parts.length >= 2) {
+    let lat = parts[0];
+    let lng = parts[1];
+    if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
+      const temp = lat; lat = lng; lng = temp;
+    }
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      if (facilitySearchedMarker) {
+        try { facilityMap.removeLayer(facilitySearchedMarker); } catch(e){}
+        facilitySearchedMarker = null;
+      }
+
+      facilityMap.flyTo([lat, lng], 19, { animate: true, duration: 1.2 });
+
+      const pinIcon = L.divIcon({
+        className: 'coord-pin-marker',
+        html: `
+          <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+            <div style="width:34px;height:34px;border-radius:50%;background:#ef4444;border:3px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;color:#ffffff;font-size:16px;">
+              📍
+            </div>
+            <div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #ef4444;"></div>
+          </div>
+        `,
+        iconSize: [34, 40],
+        iconAnchor: [17, 40],
+        popupAnchor: [0, -40]
+      });
+
+      facilitySearchedMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(facilityMap);
+      facilitySearchedMarker.bindPopup(`
+        <div style="font-size:12px;line-height:1.45;min-width:160px;">
+          <div style="font-weight:800;color:#ef4444;font-size:13px;margin-bottom:3px;">📍 Titik Koordinat</div>
+          <div style="font-family:monospace;font-size:11px;background:#fef2f2;border:1px solid #fecaca;padding:4px 8px;border-radius:5px;margin-bottom:6px;color:#991b1b;">
+            ${lat.toFixed(6)}, ${lng.toFixed(6)}
+          </div>
+        </div>
+      `).openPopup();
+
+      showToast(`📍 Berhasil menuju koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'info');
+      return;
+    }
+  }
+
+  showToast(`❌ Target "${raw}" tidak ditemukan di data pelanggan maupun koordinat valid`, 'error');
+}
+
+function focusFacilityOnMap(id) {
+  const layer = facilityLayers[id];
+  if (layer && facilityMap) {
+    try {
+      facilityMap.fitBounds(layer.getBounds(), { padding: [50, 50] });
+      layer.openPopup();
+    } catch(e){}
+  }
+}
+
+async function confirmDeleteFacility(rowIndex, nama) {
+  if (!confirm(`Hapus fasilitas/bangunan "${nama}"?\n\nTindakan ini akan menghapus baris dari Sheet Fasilitas.`)) return;
+
+  try {
+    const body = new URLSearchParams({ action: 'delete_facility', rowIndex });
+    const res  = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
+    const json = await res.json();
+    if (json.status === 'success') {
+      showToast('🗑️ Fasilitas berhasil dihapus', 'success');
+      await loadFacilities();
+    } else {
+      showToast('❌ Gagal hapus: ' + json.message, 'error');
+    }
+  } catch (err) {
+    showToast('❌ Koneksi gagal saat menghapus fasilitas.', 'error');
+  }
+}
+
+function setFacilityStatus(text, type = 'idle') {
+  const dot = document.getElementById('facilityStatusDot');
+  const txt = document.getElementById('facilityStatusText');
+  if (txt) txt.textContent = text;
+  if (!dot) return;
+  if (type === 'point')        dot.className = 'status-dot dot-point';
+  else if (type === 'polygon') dot.className = 'status-dot dot-polygon';
+  else                         dot.className = 'status-dot dot-idle';
+}
+
 

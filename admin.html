@@ -106,6 +106,11 @@
           <span>2. Gambar Jalur Pipa (Garis Distribusi)</span>
           <span style="background:#2563eb;color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:4px;">Garis Pipa</span>
         </button>
+        <button class="tab-btn" id="tabBtnFacilities" onclick="switchTab('facilities')">
+          <span style="font-size:16px;">🏭</span>
+          <span>3. Bangunan &amp; Fasilitas Pengolahan (IPA)</span>
+          <span style="background:#16a34a;color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:4px;">Area IPA</span>
+        </button>
       </div>
 
       <!-- ==================== TAB 1: PELANGGAN ==================== -->
@@ -137,8 +142,11 @@
         <!-- Toolbar -->
         <div class="table-toolbar">
           <input type="text" class="search-input" id="searchInput"
-            placeholder="🔍  Cari nama, NIK, alamat, WA, klasifikasi..."
+            placeholder="🔍  Cari nama, petugas survey, NIK, alamat, WA..."
             oninput="filterTable()" />
+          <button class="btn btn-secondary" onclick="openBulkPetugasModal()" title="Ubah nama petugas survey sekaligus pada banyak data pelanggan" style="display:inline-flex;align-items:center;gap:5px;">
+            <span>👥</span> Ganti Petugas Massal
+          </button>
           <button class="btn btn-secondary" onclick="loadAdminData()">🔄 Muat Ulang</button>
         </div>
 
@@ -318,6 +326,136 @@
         </div><!-- /pipe-container -->
       </div><!-- /sectionPipes -->
 
+      <!-- ==================== TAB 3: BANGUNAN & FASILITAS PENGOLAHAN ==================== -->
+      <div id="sectionFacilities" style="display:none;">
+        <div class="pipe-container">
+
+          <!-- Sidebar Kiri: Daftar Fasilitas / Bangunan Pengolahan -->
+          <div class="pipe-sidebar">
+            <div class="pipe-sidebar-header">
+              <div>
+                <h3>Bangunan &amp; Fasilitas (<span id="facilityCountBadge">0</span>)</h3>
+              </div>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-primary" style="padding:6px 11px;font-size:11px;background:#16a34a;" onclick="startDrawingFacility()">
+                  + Tandai Baru
+                </button>
+              </div>
+            </div>
+            <div class="pipe-list-scroll" id="facilityListScroll">
+              <!-- Diisi dinamis oleh admin.js -->
+            </div>
+          </div>
+
+          <!-- Kolom Kanan: Peta Fasilitas / Bangunan Pengolahan -->
+          <div class="pipe-map-col">
+
+            <!-- Banner Petunjuk & Quick Search Pelanggan -->
+            <div style="background:#f0fdf4;padding:8px 14px;border-bottom:1.5px solid #bbf7d0;font-size:11.5px;color:#166534;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span>💡</span>
+                <span><strong>Panduan Lokasi IPA:</strong> Peta menampilkan seluruh titik pelanggan (#Nomor), atap rumah, dan jalur pipa secara terpusat persis seperti di cetak peta. Klik <em>"+ Tandai Baru"</em> untuk menandai bidang lahan/bangunan pengolahan.</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="text" id="facilitySearchInput" placeholder="🔍 Cari nomor pelanggan (#389) atau koordinat..."
+                  onkeydown="if(event.key==='Enter') searchTargetOnFacilityMap()"
+                  style="padding:4px 9px;font-size:11px;border:1.5px solid #86efac;border-radius:6px;width:240px;background:#fff;" />
+                <button type="button" class="btn btn-secondary" style="padding:4px 9px;font-size:11px;" onclick="searchTargetOnFacilityMap()">
+                  Cari
+                </button>
+                <button type="button" class="btn btn-primary" style="padding:4px 10px;font-size:11px;background:#16a34a;" onclick="startDrawingFacility()">
+                  📐 Tandai Lahan IPA
+                </button>
+              </div>
+            </div>
+
+            <!-- Drawing Toolbar / Panel (Muncul saat mode gambar) -->
+            <div class="pipe-drawing-panel" id="facilityDrawingPanel" style="background:#f0fdf4;border-bottom:2px solid #22c55e;">
+              <div class="drawing-grid" style="grid-template-columns: 2fr 1.2fr 1fr auto; align-items: end;">
+                <div>
+                  <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px;color:#166534;">Nama Fasilitas / Bangunan</label>
+                  <input type="text" id="drawFacilityName" placeholder="Contoh: Lokasi Rencana Instalasi Pengolahan Air" style="width:100%;" />
+                </div>
+                <div>
+                  <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px;color:#166534;">Jenis / Kategori</label>
+                  <select id="drawFacilityCategory" style="width:100%;padding:7px 9px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:12px;">
+                    <option value="Instalasi Pengolahan Air (IPA)">Instalasi Pengolahan Air (IPA)</option>
+                    <option value="Reservoir / Bak Penampung">Reservoir / Bak Penampung</option>
+                    <option value="Intake / Sadap Air">Intake / Sadap Air</option>
+                    <option value="Rumah Pompa">Rumah Pompa</option>
+                    <option value="Bak Pelepas Tekan (BPT)">Bak Pelepas Tekan (BPT)</option>
+                    <option value="Kantor / Pos Jaga SPAM">Kantor / Pos Jaga SPAM</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11px;font-weight:700;display:block;margin-bottom:3px;color:#166534;">Status</label>
+                  <select id="drawFacilityStatus" style="width:100%;padding:7px 9px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:12px;">
+                    <option value="Rencana">Rencana</option>
+                    <option value="Eksisting / Operasional">Eksisting / Operasional</option>
+                    <option value="Tahap Konstruksi">Tahap Konstruksi</option>
+                  </select>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;padding-bottom:2px;">
+                  <label style="font-size:11px;font-weight:700;color:#166534;">Warna Area:</label>
+                  <input type="color" id="drawFacilityColor" value="#16a34a" style="width:38px;height:32px;border:none;cursor:pointer;background:transparent;" />
+                </div>
+              </div>
+
+              <div class="pipe-auto-metrics" style="grid-template-columns: 1.5fr 1fr 1fr; margin-top:8px;">
+                <div class="metric-box" style="background:#ffffff;border-color:#86efac;">
+                  <label style="color:#15803d;">📐 Luas Area Lahan / Bangunan</label>
+                  <div class="metric-val" id="metricFacilityArea" style="color:#15803d;">~0 m²</div>
+                </div>
+                <div class="metric-box" style="background:#ffffff;border-color:#86efac;">
+                  <label style="color:#15803d;">🔢 Jumlah Sudut Poligon</label>
+                  <div class="metric-val" id="metricFacilityPoints" style="color:#15803d;">0 sudut</div>
+                </div>
+                <div class="metric-box" style="background:#ffffff;border-color:#86efac;">
+                  <label style="color:#15803d;">💧 Kapasitas / Debit Desain</label>
+                  <input type="text" id="drawFacilityCapacity" placeholder="misal: 10 L/dtk / 100 m³" style="width:100%;font-size:12px;font-weight:700;border:none;background:transparent;color:#0f172a;" />
+                </div>
+              </div>
+
+              <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <div style="font-size:11.5px;color:#166534;">
+                  <span id="facilityDrawHint">📍 Klik di peta untuk menandai sudut ke-1 bidang tanah/bangunan IPA.</span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button type="button" class="btn btn-secondary" style="font-size:11.5px;" onclick="cancelDrawingFacility()">
+                    ✕ Batal
+                  </button>
+                  <button type="button" class="btn" style="background:#eab308;color:#000;font-size:11.5px;font-weight:700;" id="btnFinishFacilityPoly" onclick="finishDrawingFacility()">
+                    ✅ Selesai Poligon
+                  </button>
+                  <button type="button" class="btn btn-primary" style="background:#16a34a;font-size:11.5px;" id="btnSaveFacility" onclick="saveFacility()">
+                    💾 Simpan Fasilitas ke Sheet
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Layer Switcher & Fit Control -->
+            <div class="map-layer-switch" style="position:absolute;top:10px;right:10px;z-index:900;display:flex;gap:4px;flex-wrap:wrap;">
+              <button class="layer-btn" id="btnFitAllFacility" onclick="zoomFitAllFacilityMap()" title="Pusatkan Peta Mengapit Seluruh Titik Pelanggan, Pipa & Fasilitas">🎯 Pusatkan Semua</button>
+              <button class="layer-btn active" id="layerBtnFacilitySat" onclick="switchFacilityLayer('satellite')">🛰️ Satelit</button>
+              <button class="layer-btn" id="layerBtnFacilityRoad" onclick="switchFacilityLayer('roadmap')">🏢 Jalan</button>
+              <button class="layer-btn" id="layerBtnFacilityTopo" onclick="switchFacilityLayer('terrain')">⛰️ Kontur</button>
+            </div>
+
+            <!-- Wadah Peta Leaflet Fasilitas -->
+            <div id="facilityMap" style="flex:1;min-height:450px;"></div>
+
+            <!-- Status Bar -->
+            <div class="pipe-status-bar" id="facilityStatusBar">
+              <span class="status-dot dot-idle" id="facilityStatusDot"></span>
+              <span id="facilityStatusText">Siap. Klik "+ Tandai Baru" untuk mendigitasi lokasi atau bangunan pengolahan air.</span>
+            </div>
+
+          </div><!-- /pipe-map-col -->
+        </div><!-- /pipe-container -->
+      </div><!-- /sectionFacilities -->
+
     </div><!-- /admin-content -->
   </div><!-- /adminPanel -->
 
@@ -357,29 +495,42 @@
           </div>
 
           <div class="modal-field">
+            <label>Petugas Survey / Sumber Data</label>
+            <input type="text" id="editSumber" list="petugasDatalist" placeholder="Nama Petugas Surveyor (cth: Budi Santoso)" />
+          </div>
+
+          <div class="modal-field">
             <label>Peruntukan Bangunan</label>
             <select id="editPeruntukan">
-              <option value="">-- Pilih --</option>
-              <option>Rumah Tinggal</option>
-              <option>Ruko / Toko</option>
-              <option>Kantor</option>
-              <option>Sekolah / Kampus</option>
-              <option>Rumah Sakit / Klinik</option>
-              <option>Hotel / Penginapan</option>
-              <option>Lainnya</option>
+              <option value="">-- Pilih Peruntukan --</option>
+              <option value="Rumah Tinggal">Rumah Tinggal</option>
+              <option value="Rumah Sewa">Rumah Sewa</option>
+              <option value="Ruko">Ruko</option>
+              <option value="Kantor">Kantor</option>
+              <option value="Asrama">Asrama</option>
+              <option value="Hotel">Hotel</option>
+              <option value="Penginapan">Penginapan</option>
+              <option value="Sekolah">Sekolah</option>
+              <option value="Rumah Sakit">Rumah Sakit</option>
+              <option value="Rumah Ibadah / Panti Asuhan">Rumah Ibadah / Panti Asuhan</option>
+              <option value="Lainnya">Lainnya</option>
             </select>
           </div>
 
           <div class="modal-field">
             <label>Klasifikasi Pelanggan</label>
             <select id="editKlasifikasi">
-              <option value="">-- Pilih --</option>
-              <option>Rumah Tangga Sederhana</option>
-              <option>Rumah Tangga Menengah</option>
-              <option>Komersial Kecil</option>
-              <option>Komersial Menengah</option>
-              <option>Instansi Pemerintah</option>
-              <option>Sosial</option>
+              <option value="">-- Pilih Klasifikasi --</option>
+              <option value="Sosial Umum">Sosial Umum</option>
+              <option value="Sosial Khusus">Sosial Khusus</option>
+              <option value="Rumah Tangga A">Rumah Tangga A</option>
+              <option value="Rumah Tangga B">Rumah Tangga B</option>
+              <option value="Rumah Tangga C">Rumah Tangga C</option>
+              <option value="Rumah Tangga D">Rumah Tangga D</option>
+              <option value="Instansi Pemerintah">Instansi Pemerintah</option>
+              <option value="Niaga Kecil">Niaga Kecil</option>
+              <option value="Niaga Besar">Niaga Besar</option>
+              <option value="Industri">Industri</option>
             </select>
           </div>
 
@@ -453,6 +604,71 @@
 
     </div>
   </div>
+
+  <!-- ===================== MODAL GANTI PETUGAS SATU DATA ===================== -->
+  <div class="modal-overlay" id="quickPetugasModal" onclick="closeQuickPetugasModalOutside(event)">
+    <div class="modal-box" style="max-width:440px;">
+      <div class="modal-header">
+        <div class="modal-title">✏️ Ganti Petugas Survey</div>
+        <button class="modal-close" onclick="closeQuickPetugasModal()">×</button>
+      </div>
+      <div style="padding: 18px 22px;">
+        <input type="hidden" id="quickPetugasRowIndex" />
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;">Data Calon Pelanggan:</div>
+          <div style="font-size:13.5px;font-weight:800;color:#0f172a;margin-top:2px;" id="quickPetugasCustomerInfo">—</div>
+        </div>
+        <div class="modal-field">
+          <label>Nama Petugas Survey / Sumber Data</label>
+          <input type="text" id="quickPetugasInput" list="petugasDatalist" placeholder="Ketik nama petugas survey baru..." autocomplete="off" />
+        </div>
+        <div id="quickPetugasSuggestions" style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;">
+          <!-- Chips nama petugas yang sudah ada -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeQuickPetugasModal()">Batal</button>
+        <button class="btn-save" id="btnSaveQuickPetugas" onclick="saveQuickPetugas()">💾 Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== MODAL GANTI PETUGAS MASSAL ===================== -->
+  <div class="modal-overlay" id="bulkPetugasModal" onclick="closeBulkPetugasModalOutside(event)">
+    <div class="modal-box" style="max-width:500px;">
+      <div class="modal-header">
+        <div class="modal-title">👥 Ganti Nama Petugas Survey Massal</div>
+        <button class="modal-close" onclick="closeBulkPetugasModal()">×</button>
+      </div>
+      <div style="padding: 18px 22px;">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;color:#1e40af;font-size:12px;line-height:1.5;margin-bottom:16px;">
+          Fitur ini mengubah seluruh nama petugas survey lama menjadi nama baru pada semua baris data calon pelanggan yang cocok.
+        </div>
+        <div class="modal-field">
+          <label>Pilih Petugas yang Ingin Diganti</label>
+          <select id="bulkPetugasOldSelect" onchange="updateBulkPetugasCount()">
+            <option value="">-- Pilih Petugas Survey Saat Ini --</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Nama Petugas Survey Pengganti</label>
+          <input type="text" id="bulkPetugasNewInput" list="petugasDatalist" placeholder="Masukkan nama petugas pengganti..." autocomplete="off" />
+        </div>
+        <div id="bulkPetugasMatchInfo" style="font-size:12px;color:#475569;font-weight:600;margin-top:6px;">
+          Pilih petugas di atas untuk melihat jumlah data yang terpengaruh.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeBulkPetugasModal()">Batal</button>
+        <button class="btn-save" id="btnSaveBulkPetugas" onclick="saveBulkPetugas()" style="background:#0284c7;">
+          🔄 Terapkan Perubahan Massal
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Datalist Autocomplete Nama Petugas -->
+  <datalist id="petugasDatalist"></datalist>
 
   <!-- Toast Notification -->
   <div id="toast"></div>

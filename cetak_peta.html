@@ -831,6 +831,9 @@
             </div>
           </div>
 
+          <!-- Wadah Simbologi Bangunan & Fasilitas Pengolahan (IPA) -->
+          <div id="legendFacilitiesContainer"></div>
+
           <!-- Wadah Simbologi Jaringan Pipa (Dinamis Sesuai Rute & Warna dari Sheet 3) -->
           <div id="legendPipesContainer">
             <div class="legend-item">
@@ -849,6 +852,10 @@
           <div class="info-row">
             <span class="label">Total Pelanggan:</span>
             <span class="value" id="legendTotalData">0 Pelanggan</span>
+          </div>
+          <div class="info-row" id="rowInfoFacilities" style="display:none;">
+            <span class="label">Bangunan / IPA:</span>
+            <span class="value" id="legendTotalFacilities">0 Unit</span>
           </div>
           <div class="info-row">
             <span class="label">Jalur Pipa:</span>
@@ -878,6 +885,7 @@
     let printMap = null;
     let markersLayer = null;
     let pipesLayer = null;
+    let facilitiesLayer = null;
     let currentMode = 'satellite';
     let mapHasBeenFitted = false;
 
@@ -935,8 +943,9 @@
         position: 'bottomleft'
       }).addTo(printMap);
 
-      markersLayer = L.featureGroup().addTo(printMap);
-      pipesLayer   = L.featureGroup().addTo(printMap);
+      markersLayer    = L.featureGroup().addTo(printMap);
+      pipesLayer      = L.featureGroup().addTo(printMap);
+      facilitiesLayer = L.featureGroup().addTo(printMap);
 
       // Event listener: hitung ulang skala peta setiap kali peta digeser atau di-zoom
       printMap.on('moveend zoomend resize', function() {
@@ -1118,6 +1127,7 @@
             </div>
             <div style="color: #334155; margin-bottom: 2px;">📍 ${row.alamat || 'Toraja Utara'}</div>
             <div style="color: #059669; font-weight: 600; margin-bottom: 2px;">📋 ${row.klasifikasi || row.peruntukan || 'Rumah Tangga'}</div>
+            ${(row.sumber || row.petugas) ? `<div style="color: #0284c7; font-size: 11px; font-weight: 600; margin-bottom: 2px;">👤 Petugas: ${escapeHtml(row.sumber || row.petugas)}</div>` : ''}
             ${row.whatsapp ? `<div style="color: #2563eb; font-size: 11px; margin-bottom: 2px;">📞 ${row.whatsapp}</div>` : ''}
             ${polygonCoords.length >= 3 ? `<div style="color: #dc2626; font-size: 11px; font-weight: 700; margin-bottom: 2px;">🏠 Bidang Atap (${polygonCoords.length} Sudut Arsiran)</div>` : ''}
             <div style="font-family: monospace; font-size: 10px; color: #64748b; margin-top: 4px; border-top: 1px dashed #cbd5e1; padding-top: 3px;">
@@ -1198,6 +1208,7 @@
         const activeLayers = [];
         if (markersLayer && markersLayer.getLayers().length > 0) activeLayers.push(markersLayer);
         if (pipesLayer && pipesLayer.getLayers().length > 0) activeLayers.push(pipesLayer);
+        if (facilitiesLayer && facilitiesLayer.getLayers().length > 0) activeLayers.push(facilitiesLayer);
 
         if (activeLayers.length > 0) {
           const combinedGroup = L.featureGroup(activeLayers);
@@ -1520,8 +1531,9 @@
           syncStatus.innerText = "Gagal memuat pelanggan dari spreadsheet";
         });
 
-      // Muat Data Rute Pipa dari Sheet 3 secara mandiri (tidak saling memblokir)
+      // Muat Data Rute Pipa & Fasilitas Pengolahan (IPA) secara mandiri (tidak saling memblokir)
       loadPipesOnPrintMap();
+      loadFacilitiesOnPrintMap();
     }
 
     /* ------------------------------------------------------------
@@ -1684,6 +1696,133 @@
     }
 
     /* ------------------------------------------------------------
+       Muat & Gambar Bangunan / Fasilitas Pengolahan (IPA) di Peta Cetak (Sheet 4)
+    ------------------------------------------------------------ */
+    function loadFacilitiesOnPrintMap() {
+      if (!printMap || !facilitiesLayer) return;
+      const scriptUrl = CONFIG.SCRIPT_URL;
+
+      fetch(scriptUrl + '?action=get_facilities')
+        .then(res => res.json())
+        .then(json => {
+          if (json.status === 'success' && Array.isArray(json.facilities)) {
+            facilitiesLayer.clearLayers();
+            const validFacilities = [];
+
+            json.facilities.forEach(fac => {
+              if (!fac.koordinat) return;
+              const coords = fac.koordinat.split(';').map(pair => {
+                const parts = pair.split(',');
+                return [parseFloat(parts[0]), parseFloat(parts[1])];
+              }).filter(pt => !isNaN(pt[0]) && !isNaN(pt[1]));
+
+              if (coords.length >= 3) {
+                validFacilities.push(fac);
+                const color = fac.warna || '#16a34a';
+
+                // Poligon Bidang Lahan / Bangunan Pengolahan
+                const polygon = L.polygon(coords, {
+                  color: color,
+                  weight: 3.5,
+                  fillColor: color,
+                  fillOpacity: 0.45,
+                  dashArray: fac.status === 'Rencana' ? '6, 4' : null,
+                  smoothFactor: 1
+                });
+
+                polygon.bindPopup(`
+                  <div style="font-size:12px;line-height:1.45;min-width:190px;">
+                    <div style="font-weight:800;color:${color};font-size:13px;margin-bottom:3px;border-bottom:1px solid #e2e8f0;padding-bottom:3px;">
+                      🏭 ${escapeHtml(fac.nama)}
+                    </div>
+                    <div>Jenis: <strong>${escapeHtml(fac.kategori || 'IPA')}</strong></div>
+                    <div>Luas Lahan/Bangunan: <strong>${escapeHtml(fac.luas_m2 || '-')}</strong></div>
+                    ${fac.kapasitas && fac.kapasitas !== '-' ? `<div>Kapasitas: <strong>${escapeHtml(fac.kapasitas)}</strong></div>` : ''}
+                    <div>Status: <span style="font-weight:700;color:#15803d;">${escapeHtml(fac.status || 'Rencana')}</span></div>
+                  </div>
+                `);
+
+                facilitiesLayer.addLayer(polygon);
+
+                // Hitung centroid untuk meletakkan label teks fasilitas
+                let sumLat = 0, sumLng = 0;
+                coords.forEach(pt => { sumLat += pt[0]; sumLng += pt[1]; });
+                const cLat = sumLat / coords.length;
+                const cLng = sumLng / coords.length;
+
+                const labelMarker = L.marker([cLat, cLng], {
+                  icon: L.divIcon({
+                    className: 'facility-center-label',
+                    html: `
+                      <div style="background:rgba(22,163,74,0.92);color:#ffffff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:12px;border:1.5px solid #ffffff;white-space:nowrap;box-shadow:0 2px 5px rgba(0,0,0,0.35);display:inline-flex;align-items:center;gap:3px;transform:translate(-50%, -50%);">
+                        <span>🏭</span> <span>${escapeHtml(fac.nama)}</span>
+                      </div>
+                    `,
+                    iconSize: [0, 0]
+                  })
+                });
+                facilitiesLayer.addLayer(labelMarker);
+              }
+            });
+
+            // Update legenda & informasi data
+            updateFacilityLegend(validFacilities);
+
+            const rowInfo = document.getElementById('rowInfoFacilities');
+            const totalFac = document.getElementById('legendTotalFacilities');
+            if (rowInfo && totalFac) {
+              if (validFacilities.length > 0) {
+                rowInfo.style.display = 'flex';
+                totalFac.innerText = `${validFacilities.length} Unit`;
+              } else {
+                rowInfo.style.display = 'none';
+              }
+            }
+
+            // Paskan ulang peta
+            zoomFitAllCustomerPoints();
+          } else {
+            updateFacilityLegend([]);
+          }
+        })
+        .catch(err => {
+          console.warn("Facilities load error:", err);
+          updateFacilityLegend([]);
+        });
+    }
+
+    function updateFacilityLegend(facilities) {
+      const container = document.getElementById('legendFacilitiesContainer');
+      if (!container) return;
+
+      if (!facilities || facilities.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      facilities.forEach(fac => {
+        const color = fac.warna || '#16a34a';
+        const nama = escapeHtml(fac.nama || 'Bangunan Pengolahan');
+        const kat = escapeHtml(fac.kategori || 'IPA');
+        const luas = fac.luas_m2 ? `Luas ${escapeHtml(fac.luas_m2)}` : '';
+        const sub = [kat, luas].filter(Boolean).join(' • ');
+
+        html += `
+          <div class="legend-item" style="margin-bottom: 5px;">
+            <div style="width:18px;height:14px;background:${color}55;border:2px solid ${color};border-radius:2px;flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,0.2);"></div>
+            <div>
+              <div class="legend-item-text"><strong>${nama}</strong></div>
+              <div class="legend-item-sub">${sub}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    /* ------------------------------------------------------------
        Sinkronisasi ukuran peta saat dialog cetak printer dibuka
     ------------------------------------------------------------ */
         /* ------------------------------------------------------------
@@ -1704,10 +1843,11 @@
         btnPrint.disabled = true;
       }
 
-      // Kumpulkan layer titik pelanggan dan layer rute pipa
+      // Kumpulkan layer titik pelanggan, rute pipa, dan fasilitas pengolahan (IPA)
       const activeLayers = [];
       if (markersLayer && markersLayer.getLayers().length > 0) activeLayers.push(markersLayer);
       if (pipesLayer && pipesLayer.getLayers().length > 0) activeLayers.push(pipesLayer);
+      if (facilitiesLayer && facilitiesLayer.getLayers().length > 0) activeLayers.push(facilitiesLayer);
 
       const container = document.querySelector('.topografi-container');
       if (container) {
@@ -1788,6 +1928,7 @@
         const activeLayers = [];
         if (markersLayer && markersLayer.getLayers().length > 0) activeLayers.push(markersLayer);
         if (pipesLayer && pipesLayer.getLayers().length > 0) activeLayers.push(pipesLayer);
+        if (facilitiesLayer && facilitiesLayer.getLayers().length > 0) activeLayers.push(facilitiesLayer);
         if (activeLayers.length > 0) {
           const combinedGroup = L.featureGroup(activeLayers);
           const bounds = combinedGroup.getBounds();

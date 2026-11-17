@@ -39,6 +39,256 @@ document.addEventListener('DOMContentLoaded', function () {
   // Tombol zoom di kiri atas
   L.control.zoom({ position: 'topleft' }).addTo(map);
 
+  // State & Data Manajemen Kepemilikan Surveyor (Ownership-Based Security)
+  let allLoadedCustomers = [];
+  let editingCustomerRow = null;
+
+  function isCustomerOwnedByActivePetugas(row) {
+    if (!row) return false;
+    const session = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+    if (session && session.role === 'admin') return true; // Admin berhak mengedit data siapa pun
+
+    const myName = (activePetugasName || '').trim().toLowerCase();
+    const rowOwner = (row.sumber || row.petugas || '').trim().toLowerCase();
+    return myName !== '' && rowOwner === myName;
+  }
+
+  function updateMyCustomerBadge() {
+    const badgeEl = document.getElementById('myCustomerCount');
+    if (!badgeEl) return;
+    const myCount = allLoadedCustomers.filter(r => isCustomerOwnedByActivePetugas(r)).length;
+    badgeEl.textContent = myCount;
+  }
+
+  // Buka Formulir dalam Mode Edit
+  window.startEditCustomer = function(index) {
+    const row = allLoadedCustomers[index];
+    if (!row) return;
+
+    if (!isCustomerOwnedByActivePetugas(row)) {
+      alert("Akses Ditolak: Anda hanya diizinkan mengedit data yang Anda input sendiri.\nData ini diinput oleh: " + (row.sumber || 'Petugas lain'));
+      return;
+    }
+
+    editingCustomerRow = row;
+
+    // Isi formulir
+    const elNama = document.getElementById('nama');
+    const elNik = document.getElementById('nik');
+    const elWa = document.getElementById('whatsapp');
+    const elAlamat = document.getElementById('alamat');
+    const elPeruntukan = document.getElementById('peruntukan_bangunan');
+    const elKlasifikasi = document.getElementById('klasifikasi_pelanggan');
+
+    if (elNama) elNama.value = row.nama || '';
+    if (elNik) elNik.value = row.nik || '';
+    if (elWa) elWa.value = row.whatsapp || '';
+    if (elAlamat) elAlamat.value = row.alamat || '';
+    if (elPeruntukan) elPeruntukan.value = row.peruntukan || '';
+    if (elKlasifikasi) elKlasifikasi.value = row.klasifikasi || '';
+
+    // Koordinat titik & atap
+    const rawLat = parseFloat(row.latitude);
+    const rawLng = parseFloat(row.longitude);
+    const polyCoords = parsePolygonCoords(row.polygon);
+
+    resetRoofPolygon();
+
+    if (polyCoords.length >= 3) {
+      polygonPoints = polyCoords;
+      roofPolygonLayer = L.polygon(polygonPoints, {
+        color: '#f59e0b',
+        weight: 2.5,
+        fillColor: '#fbbf24',
+        fillOpacity: 0.45,
+        dashArray: '4, 4'
+      }).addTo(map);
+
+      const centroid = calculateCentroid(polygonPoints);
+      marker.setLatLng([centroid.lat, centroid.lng]);
+      map.flyTo([centroid.lat, centroid.lng], 19, { animate: true, duration: 1 });
+      setCoordinates(centroid.lat, centroid.lng);
+      if (inputPolygonCoords) inputPolygonCoords.value = polygonPoints.map(p => p[0].toFixed(6) + ',' + p[1].toFixed(6)).join(';');
+    } else if (!isNaN(rawLat) && !isNaN(rawLng)) {
+      marker.setLatLng([rawLat, rawLng]);
+      map.flyTo([rawLat, rawLng], 19, { animate: true, duration: 1 });
+      setCoordinates(rawLat, rawLng);
+    }
+
+    // Tampilkan Banner Edit
+    const notice = document.getElementById('editModeNotice');
+    const infoText = document.getElementById('editCustomerInfo');
+    if (notice) notice.style.display = 'flex';
+    if (infoText) infoText.textContent = `#${row.no || (index + 1)}. ${row.nama || 'Calon Pelanggan'} (${row.alamat || 'Alamat'})`;
+
+    // Ubah tombol simpan
+    if (submitBtn) {
+      submitBtn.innerHTML = '<span>💾 Simpan Perubahan Data</span>';
+      submitBtn.style.background = '#059669';
+    }
+
+    // Tutup modal jika sedang terbuka
+    closeMyDataModal();
+
+    // Scroll ke bagian form
+    const formEl = document.getElementById('customerForm');
+    if (formEl) {
+      formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  function cancelEditCustomer() {
+    editingCustomerRow = null;
+    const notice = document.getElementById('editModeNotice');
+    if (notice) notice.style.display = 'none';
+
+    form.reset();
+    resetRoofPolygon();
+
+    if (inputSumberData) inputSumberData.value = activePetugasName;
+    if (submitBtn) {
+      submitBtn.innerHTML = '<span>Kirim Pendaftaran</span>';
+      submitBtn.style.background = '';
+    }
+  }
+
+  const btnCancelEdit = document.getElementById('btnCancelEdit');
+  if (btnCancelEdit) {
+    btnCancelEdit.addEventListener('click', cancelEditCustomer);
+  }
+
+  // ==========================================
+  // MODAL: DATA INPUTAN SAYA (SURVEYOR)
+  // ==========================================
+  const myDataModal = document.getElementById('myDataModal');
+  const btnMyData = document.getElementById('btnMyData');
+  const btnCloseMyDataModal = document.getElementById('btnCloseMyDataModal');
+  const btnFooterCloseMyData = document.getElementById('btnFooterCloseMyData');
+  const searchMyDataInput = document.getElementById('searchMyDataInput');
+
+  function openMyDataModal() {
+    if (!myDataModal) return;
+    myDataModal.style.display = 'flex';
+    const subTitle = document.getElementById('myDataModalSubtitle');
+    if (subTitle) {
+      subTitle.textContent = `Petugas Surveyor: ${activePetugasName || 'Saya'}`;
+    }
+    renderMyDataList('');
+    if (searchMyDataInput) {
+      searchMyDataInput.value = '';
+      setTimeout(() => searchMyDataInput.focus(), 150);
+    }
+  }
+
+  function closeMyDataModal() {
+    if (myDataModal) myDataModal.style.display = 'none';
+  }
+
+  function renderMyDataList(filterKeyword) {
+    const container = document.getElementById('myDataListContainer');
+    const countBadge = document.getElementById('myDataFilteredCount');
+    if (!container) return;
+
+    const myRows = allLoadedCustomers.filter(r => isCustomerOwnedByActivePetugas(r));
+    const query = (filterKeyword || '').trim().toLowerCase();
+
+    const filtered = myRows.filter(r => {
+      if (!query) return true;
+      const nama = (r.nama || '').toLowerCase();
+      const alamat = (r.alamat || '').toLowerCase();
+      const no = String(r.no || '');
+      return nama.includes(query) || alamat.includes(query) || no.includes(query);
+    });
+
+    if (countBadge) countBadge.textContent = `${filtered.length} dari ${myRows.length} Data`;
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div style="padding:40px 16px;text-align:center;color:#94a3b8;">
+          <div style="font-size:32px;margin-bottom:8px;">📋</div>
+          <div style="font-size:13px;font-weight:700;color:#64748b;">
+            ${myRows.length === 0 ? 'Anda belum memiliki data inputan tersimpan.' : 'Tidak ada data yang cocok dengan pencarian.'}
+          </div>
+          <div style="font-size:11.5px;margin-top:4px;">
+            ${myRows.length === 0 ? 'Data yang Anda submit melalui form otomatis muncul di sini.' : 'Coba kata kunci pencarian yang lain.'}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    filtered.forEach(row => {
+      const globalIdx = allLoadedCustomers.indexOf(row);
+      const noUrut = row.no || (globalIdx + 1);
+      const hasRoof = row.polygon && row.polygon.length > 5;
+
+      html += `
+        <div style="background:#ffffff;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.04);transition:all 0.15s ease;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div>
+              <div style="font-size:13.5px;font-weight:800;color:#0f172a;">
+                <span style="color:#0284c7;">#${noUrut}.</span> ${escapeHtml(row.nama || 'Calon Pelanggan')}
+              </div>
+              <div style="font-size:11.5px;color:#475569;margin-top:2px;">📍 ${escapeHtml(row.alamat || '-')}</div>
+              <div style="font-size:11px;color:#059669;font-weight:600;margin-top:2px;">
+                📋 ${escapeHtml(row.klasifikasi || row.peruntukan || 'Rumah Tangga')}
+                ${hasRoof ? '<span style="color:#d97706;margin-left:6px;font-weight:700;">🏠 Ada Arsiran Atap</span>' : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;">
+              <button type="button" onclick="flyToCustomerAndCloseModal(${globalIdx})" style="background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;padding:5px 9px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;" title="Lihat lokasi di peta">
+                🎯 Peta
+              </button>
+              <button type="button" onclick="window.startEditCustomer(${globalIdx})" style="background:#0284c7;border:1px solid #0369a1;color:#ffffff;padding:5px 12px;border-radius:6px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="Edit data ini">
+                ✏️ Edit
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  }
+
+  window.flyToCustomerAndCloseModal = function(index) {
+    const row = allLoadedCustomers[index];
+    if (!row) return;
+    closeMyDataModal();
+
+    let lat = parseFloat(row.latitude);
+    let lng = parseFloat(row.longitude);
+    const polyCoords = parsePolygonCoords(row.polygon);
+    if (polyCoords.length >= 3 && (isNaN(lat) || isNaN(lng))) {
+      const centroid = calculateCentroid(polyCoords);
+      lat = centroid.lat;
+      lng = centroid.lng;
+    }
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      map.flyTo([lat, lng], 19, { animate: true, duration: 1.2 });
+      // Scroll ke peta jika di layar mobile
+      const mapEl = document.getElementById('map');
+      if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  if (btnMyData) btnMyData.addEventListener('click', openMyDataModal);
+  if (btnCloseMyDataModal) btnCloseMyDataModal.addEventListener('click', closeMyDataModal);
+  if (btnFooterCloseMyData) btnFooterCloseMyData.addEventListener('click', closeMyDataModal);
+  if (myDataModal) {
+    myDataModal.addEventListener('click', function(e) {
+      if (e.target === myDataModal) closeMyDataModal();
+    });
+  }
+  if (searchMyDataInput) {
+    searchMyDataInput.addEventListener('input', function() {
+      renderMyDataList(this.value);
+    });
+  }
+
+
   // Layer Penanda Pelanggan & Jalur Pipa Terdaftar di Sekitar
   const existingCustomersGroup = L.featureGroup().addTo(map);
   const existingPipesGroup     = L.featureGroup().addTo(map);
@@ -415,23 +665,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (inputSumberData)  inputSumberData.value = activePetugasName;
   }
 
-  if (btnUbahPetugas) {
-    btnUbahPetugas.addEventListener('click', function () {
-      const baru = prompt("Ubah Nama Lengkap Petugas Surveyor / Sumber Data:", activePetugasName);
-      if (baru !== null && baru.trim() !== '') {
-        activePetugasName = baru.trim();
-        if (displayPetugasEl) displayPetugasEl.textContent = activePetugasName;
-        if (inputSumberData)  inputSumberData.value = activePetugasName;
-        localStorage.setItem('saved_petugas_nama', activePetugasName);
-
-        let session = (typeof getAuthSession === 'function') ? getAuthSession() : null;
-        if (session) {
-          session.petugas_nama = activePetugasName;
-          if (typeof setAuthSession === 'function') setAuthSession(session);
-        }
-      }
-    });
-  }
 
   initSurveyorIdentity();
 
@@ -475,13 +708,24 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
+    const session = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+    const currentRole = (session && session.role) ? session.role : 'survey';
+
     submitBtn.disabled = true;
-    submitBtn.innerText = "Mengirim...";
+    submitBtn.innerText = editingCustomerRow ? "Menyimpan Perubahan..." : "Mengirim...";
     statusMsg.style.display = "none";
 
     const formData = new FormData(form);
     // Pastikan sumber data / nama petugas selalu terisi
     formData.set('sumber_data', activePetugasName || (inputSumberData ? inputSumberData.value : 'Surveyor'));
+    formData.set('petugas_nama', activePetugasName || (inputSumberData ? inputSumberData.value : 'Surveyor'));
+    formData.set('role', currentRole);
+
+    // Jika sedang dalam Mode Edit, set action 'update' dan rowIndex
+    if (editingCustomerRow) {
+      formData.set('action', 'update');
+      formData.set('rowIndex', editingCustomerRow.rowIndex);
+    }
 
     fetch(scriptUrl, {
       method: 'POST',
@@ -498,10 +742,17 @@ document.addEventListener('DOMContentLoaded', function () {
       submitBtn.innerText = "Kirim Pendaftaran";
 
       if (res.status === 'success') {
-        showSuccessModal();
-        form.reset();
-        if (inputSumberData) inputSumberData.value = activePetugasName;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (editingCustomerRow) {
+          alert('✅ Data pelanggan berhasil diperbarui!');
+          cancelEditCustomer();
+          loadExistingGisLayers();
+        } else {
+          showSuccessModal();
+          form.reset();
+          if (inputSumberData) inputSumberData.value = activePetugasName;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          loadExistingGisLayers();
+        }
       } else {
         throw new Error(res.message || "Gagal menyimpan data");
       }
@@ -620,8 +871,10 @@ document.addEventListener('DOMContentLoaded', function () {
                      (Array.isArray(res.data) ? res.data : []);
 
         existingCustomersGroup.clearLayers();
+        allLoadedCustomers = rows;
         loadedCustCount = rows.length;
         updateBadgeText();
+        updateMyCustomerBadge();
 
         rows.forEach((row, idx) => {
           const noUrut = row.no || (idx + 1);
@@ -644,7 +897,22 @@ document.addEventListener('DOMContentLoaded', function () {
               <div style="color:#059669;font-weight:600;margin-bottom:2px;">📋 ${escapeHtml(row.klasifikasi || row.peruntukan || 'Rumah Tangga')}</div>
               ${row.whatsapp ? `<div style="color:#2563eb;font-size:11px;margin-bottom:2px;">📞 ${escapeHtml(row.whatsapp)}</div>` : ''}
               ${polygonCoords.length >= 3 ? `<div style="color:#dc2626;font-size:11px;font-weight:700;">🏠 Bidang Atap (${polygonCoords.length} Sudut Arsiran)</div>` : ''}
-              <div style="font-size:10px;color:#64748b;margin-top:4px;border-top:1px dashed #e2e8f0;padding-top:2px;">Sumber: <strong>${escapeHtml(row.sumber || 'Surveyor')}</strong></div>
+              <div style="font-size:10px;color:#64748b;margin-top:4px;border-top:1px dashed #e2e8f0;padding-top:2px;display:flex;align-items:center;justify-content:space-between;">
+                <span>Sumber: <strong>${escapeHtml(row.sumber || 'Surveyor')}</strong></span>
+                ${isCustomerOwnedByActivePetugas(row) ? '<span style="font-size:9.5px;color:#0284c7;font-weight:700;background:#e0f2fe;padding:1px 6px;border-radius:10px;">Data Anda</span>' : ''}
+              </div>
+              ${isCustomerOwnedByActivePetugas(row) ? `
+                <div style="margin-top:8px;border-top:1px dashed #cbd5e1;padding-top:6px;">
+                  <button type="button" onclick="window.startEditCustomer(${idx})" style="width:100%;background:#0284c7;color:#ffffff;border:none;border-radius:6px;padding:6px 10px;font-size:11.5px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;box-shadow:0 1px 3px rgba(2,132,199,0.3);">
+                    <span>✏️</span> Edit Data Saya
+                  </button>
+                </div>
+              ` : `
+                <div style="margin-top:6px;font-size:10px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;padding:4px 6px;border-radius:4px;display:flex;align-items:center;gap:4px;">
+                  <span>🔒</span>
+                  <span>Diinput oleh: <strong>${escapeHtml(row.sumber || 'Petugas lain')}</strong> (Terkunci)</span>
+                </div>
+              `}
             </div>
           `;
 

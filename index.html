@@ -88,8 +88,24 @@
           <strong id="displayPetugasNama" style="font-size:13.5px;color:#0c4a6e;">-</strong>
         </div>
       </div>
-      <button type="button" id="btnUbahPetugas" style="background:#ffffff;border:1px solid #7dd3fc;color:#0284c7;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all 0.15s ease;">
-        ✏️ Ubah Nama
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <button type="button" id="btnMyData" style="background:#0284c7;border:1px solid #0369a1;color:#ffffff;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all 0.15s ease;" title="Lihat dan edit data calon pelanggan yang Anda input">
+          📋 Data Saya (<span id="myCustomerCount">0</span>)
+        </button>
+      </div>
+    </div>
+
+    <!-- Banner Mode Edit Pelanggan (Muncul Saat Petugas Mengedit Data Sendiri) -->
+    <div id="editModeNotice" style="display:none;background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:12px 14px;margin-bottom:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:20px;">✏️</span>
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:0.5px;">Mode Edit Data Aktif</div>
+          <div style="font-size:13px;font-weight:700;color:#78350f;" id="editCustomerInfo">Memperbarui data pelanggan #...</div>
+        </div>
+      </div>
+      <button type="button" id="btnCancelEdit" style="background:#ffffff;border:1px solid #d97706;color:#b45309;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;transition:all 0.15s;">
+        ✕ Batal Edit (Input Baru)
       </button>
     </div>
 
@@ -256,6 +272,37 @@
       <button type="button" id="btnModalClose" class="btn-modal">
         Selesai / Mengerti
       </button>
+    </div>
+  </div>
+
+  <!-- Modal Data Inputan Saya (Khusus Petugas Surveyor yang Login) -->
+  <div id="myDataModal" class="modal-backdrop" style="display:none;align-items:center;justify-content:center;position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:9999;padding:16px;">
+    <div style="background:#ffffff;border-radius:16px;max-width:680px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 45px rgba(0,0,0,0.3);overflow:hidden;">
+      <!-- Modal Header -->
+      <div style="padding:16px 20px;background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%);color:#ffffff;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">📋</span>
+          <div>
+            <h3 style="font-size:16px;font-weight:800;margin:0;">Data Calon Pelanggan Inputan Saya</h3>
+            <p style="font-size:11.5px;opacity:0.9;margin:2px 0 0;" id="myDataModalSubtitle">Menampilkan data yang Anda input</p>
+          </div>
+        </div>
+        <button type="button" id="btnCloseMyDataModal" style="background:rgba(255,255,255,0.2);border:none;color:#ffffff;font-size:18px;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
+      <!-- Modal Search & Filter -->
+      <div style="padding:12px 20px;border-bottom:1px solid #e2e8f0;background:#f8fafc;display:flex;gap:10px;align-items:center;">
+        <input type="text" id="searchMyDataInput" placeholder="🔍 Cari nama pelanggan atau alamat..." style="flex:1;padding:8px 12px;font-size:12.5px;border:1px solid #cbd5e1;border-radius:8px;outline:none;" />
+        <span style="font-size:11.5px;color:#0284c7;font-weight:700;white-space:nowrap;background:#e0f2fe;padding:4px 10px;border-radius:12px;" id="myDataFilteredCount">0 Data</span>
+      </div>
+      <!-- Modal Body / List -->
+      <div id="myDataListContainer" style="flex:1;overflow-y:auto;padding:14px 20px;min-height:220px;">
+        <!-- Diisi dinamis oleh JavaScript -->
+      </div>
+      <!-- Modal Footer -->
+      <div style="padding:12px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;color:#64748b;">💡 Anda hanya dapat mengedit data yang Anda input sendiri.</span>
+        <button type="button" class="btn-modal" id="btnFooterCloseMyData" style="margin:0;padding:7px 16px;font-size:12px;background:#64748b;">Tutup</button>
+      </div>
     </div>
   </div>
 
