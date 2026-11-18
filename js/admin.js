@@ -346,6 +346,28 @@ function closeEditModalOutside(ev) {
   if (ev.target === document.getElementById('editModal')) closeEditModal();
 }
 
+function ensureAdminHatchPattern() {
+  try {
+    const svg = document.querySelector('#editMap svg');
+    if (!svg) return;
+    let defs = svg.querySelector('defs');
+    if (!defs) {
+      defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      svg.insertBefore(defs, svg.firstChild);
+    }
+    if (!svg.querySelector('#diagonalHatchAdmin')) {
+      const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+      pattern.setAttribute('id', 'diagonalHatchAdmin');
+      pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      pattern.setAttribute('width', '8');
+      pattern.setAttribute('height', '8');
+      pattern.setAttribute('patternTransform', 'rotate(45)');
+      pattern.innerHTML = '<rect width="8" height="8" fill="rgba(239, 68, 68, 0.45)" /><line x1="0" y1="0" x2="0" y2="8" stroke="#dc2626" stroke-width="2" />';
+      defs.appendChild(pattern);
+    }
+  } catch (e) {}
+}
+
 function initEditMap() {
   editLayerSat  = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
     maxZoom: 21, subdomains: ['mt0','mt1','mt2','mt3'], attribution: '© Google Maps'
@@ -384,27 +406,97 @@ function switchEditLayer(mode) {
   else editLayerTopo.addTo(editMap);
 }
 
+let editVertexMarkers = [];
+
+function clearEditVertexMarkers() {
+  editVertexMarkers.forEach(m => { try { editMap.removeLayer(m); } catch(e){} });
+  editVertexMarkers = [];
+}
+
+// Render Titik Sudut Interaktif (Draggable Handles) untuk Setiap Sudut Poligon Atap
+function renderEditPolygonVertices() {
+  clearEditVertexMarkers();
+  if (!editMap || !editPolyPoints || editPolyPoints.length < 3) return;
+
+  editPolyPoints.forEach((pt, idx) => {
+    const handleIcon = L.divIcon({
+      className: 'leaflet-div-icon',
+      html: `<div style="width:18px;height:18px;background:#ffffff;border:2.5px solid #2563eb;border-radius:50%;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;color:#2563eb;" title="Tarik sudut #${idx + 1} untuk menyesuaikan bentuk atap">${idx + 1}</div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+
+    const vMarker = L.marker([pt[0], pt[1]], {
+      icon: handleIcon,
+      draggable: true,
+      zIndexOffset: 3000
+    }).addTo(editMap);
+
+    vMarker.on('drag', function(ev) {
+      const pos = ev.target.getLatLng();
+      editPolyPoints[idx] = [pos.lat, pos.lng];
+      if (editPolyLayer) {
+        editPolyLayer.setLatLngs(editPolyPoints);
+      }
+      onPolygonVerticesUpdated();
+    });
+
+    vMarker.on('dragend', function() {
+      onPolygonVerticesUpdated();
+      setEditStatus(`🏠 Sudut #${idx + 1} disesuaikan: ${editPolyPoints[idx][0].toFixed(6)}, ${editPolyPoints[idx][1].toFixed(6)}`);
+    });
+
+    editVertexMarkers.push(vMarker);
+  });
+}
+
+function onPolygonVerticesUpdated() {
+  const polyStr = editPolyPoints.map(p => `${p[0].toFixed(7)},${p[1].toFixed(7)}`).join(';');
+  document.getElementById('editPolygon').value = polyStr;
+
+  let sumLat = 0, sumLng = 0;
+  editPolyPoints.forEach(p => { sumLat += p[0]; sumLng += p[1]; });
+  const cLat = sumLat / editPolyPoints.length;
+  const cLng = sumLng / editPolyPoints.length;
+
+  if (editMarker) {
+    editMarker.setLatLng([cLat, cLng]);
+  }
+  updateCoordInputs(cLat, cLng);
+}
+
 function setEditMapMode(mode) {
   editMapMode = mode;
-  const btnPoint = document.getElementById('btnModePoint');
-  const btnPoly  = document.getElementById('btnModePolygon');
-  const btnFin   = document.getElementById('btnFinishPoly');
-  const dot      = document.getElementById('statusDot');
-  const txt      = document.getElementById('statusText');
+  const btnPoint   = document.getElementById('btnModePoint');
+  const btnPoly    = document.getElementById('btnModePolygon');
+  const btnFin     = document.getElementById('btnFinishPoly');
+  const btnRestart = document.getElementById('btnRestartPoly');
+  const dot        = document.getElementById('statusDot');
+  const txt        = document.getElementById('statusText');
 
   btnPoint.className = 'map-mode-btn' + (mode === 'point'   ? ' active-point'   : '');
   btnPoly.className  = 'map-mode-btn' + (mode === 'polygon' ? ' active-polygon' : '');
 
   if (mode === 'polygon') {
-    clearPolygonLayers();
-    editPolyPoints = [];
-    btnFin.classList.add('visible');
     dot.className = 'status-dot dot-polygon';
-    txt.textContent = 'Klik sudut-sudut atap bangunan (min. 3 titik) lalu tekan ✅ Selesai';
+    if (editPolyPoints.length >= 3) {
+      // Poligon sudah ada: aktifkan titik sudut interaktif agar bisa digeser
+      renderEditPolygonVertices();
+      btnFin.classList.remove('visible');
+      if (btnRestart) btnRestart.style.display = 'inline-flex';
+      txt.textContent = '🏠 Seret sudut (1, 2, 3...) untuk menyesuaikan bentuk atap, atau klik peta untuk menambah sudut';
+    } else {
+      // Belum ada poligon: aktifkan mode penandaan sudut baru
+      btnFin.classList.add('visible');
+      if (btnRestart) btnRestart.style.display = 'none';
+      txt.textContent = 'Klik sudut-sudut atap bangunan (min. 3 titik) lalu tekan ✅ Selesai Arsiran';
+    }
   } else {
+    // Mode Titik Rumah
     btnFin.classList.remove('visible');
+    if (btnRestart) btnRestart.style.display = 'none';
     dot.className = 'status-dot dot-point';
-    txt.textContent = 'Klik di peta untuk memindahkan titik koordinat';
+    txt.textContent = '📍 Seret pin untuk memindahkan titik lokasi, atau klik langsung pada posisi baru';
   }
 }
 
@@ -412,45 +504,59 @@ function onEditMapClick(ev) {
   const { lat, lng } = ev.latlng;
 
   if (editMapMode === 'point') {
-    if (editMarker) { editMap.removeLayer(editMarker); editMarker = null; }
+    // Geser atau buat titik lokasi tanpa menghapus arsiran atap
+    if (editMarker) {
+      editMarker.setLatLng([lat, lng]);
+    } else {
+      const icon = L.divIcon({
+        className: 'leaflet-div-icon',
+        html: '<div class="edit-pin" style="cursor:grab;">📍</div>',
+        iconSize: [22,22], iconAnchor: [11,11]
+      });
+      editMarker = L.marker([lat, lng], { icon, draggable: true }).addTo(editMap);
 
-    const icon = L.divIcon({
-      className: 'leaflet-div-icon',
-      html: '<div class="edit-pin">📍</div>',
-      iconSize: [22,22], iconAnchor: [11,11]
-    });
-    editMarker = L.marker([lat, lng], { icon, draggable: true }).addTo(editMap);
-
-    editMarker.on('dragend', e => {
-      const pos = e.target.getLatLng();
-      updateCoordInputs(pos.lat, pos.lng);
-      setEditStatus(`📍 Titik: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
-    });
+      editMarker.on('dragend', e => {
+        const pos = e.target.getLatLng();
+        updateCoordInputs(pos.lat, pos.lng);
+        setEditStatus(`📍 Titik: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
+      });
+    }
 
     updateCoordInputs(lat, lng);
-    clearPolygonLayers();
-    document.getElementById('editPolygon').value = '';
     setEditStatus(`📍 Titik ditetapkan: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
 
   } else {
-    editPolyPoints.push([lat, lng]);
+    // Mode Poligon / Arsiran Atap
+    if (editPolyLayer && editPolyPoints.length >= 3) {
+      // Tambah sudut baru ke poligon yang sudah ada
+      editPolyPoints.push([lat, lng]);
+      editPolyLayer.setLatLngs(editPolyPoints);
+      renderEditPolygonVertices();
+      onPolygonVerticesUpdated();
+      setEditStatus(`🏠 Sudut #${editPolyPoints.length} ditambahkan`);
+    } else {
+      // Sedang menandai poligon baru
+      editPolyPoints.push([lat, lng]);
 
-    const dotIcon = L.divIcon({
-      className: 'leaflet-div-icon',
-      html: '<div class="poly-dot"></div>',
-      iconSize: [10,10], iconAnchor: [5,5]
-    });
-    const dot = L.marker([lat, lng], { icon: dotIcon }).addTo(editMap);
-    editPolyDots.push(dot);
+      const dotIcon = L.divIcon({
+        className: 'leaflet-div-icon',
+        html: '<div class="poly-dot"></div>',
+        iconSize: [10,10], iconAnchor: [5,5]
+      });
+      const dot = L.marker([lat, lng], { icon: dotIcon }).addTo(editMap);
+      editPolyDots.push(dot);
 
-    if (editPreviewLine) { editMap.removeLayer(editPreviewLine); editPreviewLine = null; }
-    if (editPolyPoints.length >= 2) {
-      editPreviewLine = L.polyline(editPolyPoints, {
-        color: '#7c3aed', weight: 2, dashArray: '6 4'
-      }).addTo(editMap);
+      if (editPreviewLine) { editMap.removeLayer(editPreviewLine); editPreviewLine = null; }
+      if (editPolyPoints.length >= 2) {
+        editPreviewLine = L.polyline(editPolyPoints, {
+          color: '#7c3aed', weight: 2, dashArray: '6 4'
+        }).addTo(editMap);
+      }
+
+      const btnFin = document.getElementById('btnFinishPoly');
+      if (btnFin) btnFin.classList.add('visible');
+      setEditStatus(`✏️ ${editPolyPoints.length} sudut ditandai — tekan ✅ Selesai Arsiran`);
     }
-
-    setEditStatus(`✏️ ${editPolyPoints.length} sudut ditandai — tekan ✅ Selesai untuk menutup poligon`);
   }
 }
 
@@ -461,6 +567,8 @@ function finishEditPolygon() {
   }
 
   if (editPreviewLine) { editMap.removeLayer(editPreviewLine); editPreviewLine = null; }
+  editPolyDots.forEach(d => { try { editMap.removeLayer(d); } catch(e){} });
+  editPolyDots = [];
 
   if (editPolyLayer) { editMap.removeLayer(editPolyLayer); editPolyLayer = null; }
   editPolyLayer = L.polygon(editPolyPoints, {
@@ -476,22 +584,50 @@ function finishEditPolygon() {
   if (editMarker) { editMap.removeLayer(editMarker); editMarker = null; }
   const icon = L.divIcon({
     className: 'leaflet-div-icon',
-    html: '<div class="edit-pin" style="font-size:9px">CTR</div>',
+    html: '<div class="edit-pin" style="font-size:9px;cursor:grab;">CTR</div>',
     iconSize: [30,22], iconAnchor: [15,11]
   });
-  editMarker = L.marker([cLat, cLng], { icon }).addTo(editMap);
+  editMarker = L.marker([cLat, cLng], { icon, draggable: true }).addTo(editMap);
 
-  updateCoordInputs(cLat, cLng);
-  const polyStr = editPolyPoints.map(p => `${p[0].toFixed(7)},${p[1].toFixed(7)}`).join(';');
-  document.getElementById('editPolygon').value = polyStr;
+  editMarker.on('dragend', e => {
+    const pos = e.target.getLatLng();
+    updateCoordInputs(pos.lat, pos.lng);
+    setEditStatus(`📍 Titik pusat: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
+  });
+
+  renderEditPolygonVertices();
+  onPolygonVerticesUpdated();
 
   editMap.fitBounds(editPolyLayer.getBounds(), { padding: [20,20] });
-  setEditStatus(`🏠 Poligon selesai: ${editPolyPoints.length} sudut · centroid ${cLat.toFixed(6)}, ${cLng.toFixed(6)}`);
-  setEditMapMode('point');
+  setEditStatus(`🏠 Poligon selesai: ${editPolyPoints.length} sudut · seret sudut (1, 2...) untuk menyesuaikan`);
+
+  const btnFin = document.getElementById('btnFinishPoly');
+  const btnRestart = document.getElementById('btnRestartPoly');
+  if (btnFin) btnFin.classList.remove('visible');
+  if (btnRestart) btnRestart.style.display = 'inline-flex';
+}
+
+function restartEditPolygon() {
+  if (editPolyPoints.length >= 3 && !confirm('Hapus arsiran atap saat ini dan gambar ulang dari awal?')) return;
+  clearPolygonLayers();
+  editPolyPoints = [];
+  document.getElementById('editPolygon').value = '';
+
+  const btnFin = document.getElementById('btnFinishPoly');
+  const btnRestart = document.getElementById('btnRestartPoly');
+  if (btnFin) btnFin.classList.add('visible');
+  if (btnRestart) btnRestart.style.display = 'none';
+
+  setEditStatus('Klik sudut-sudut atap bangunan di peta (min. 3 titik) lalu tekan ✅ Selesai Arsiran');
 }
 
 function clearEditMapAll() {
-  if (!confirm('Hapus semua penandaan di peta?')) return;
+  const hasPoint = !!editMarker;
+  const hasPoly  = editPolyPoints.length > 0;
+  if (!hasPoint && !hasPoly) return;
+
+  if (!confirm('Hapus semua penandaan (titik dan arsiran atap) pada data pelanggan ini?')) return;
+
   if (editMarker)      { editMap.removeLayer(editMarker);      editMarker      = null; }
   clearPolygonLayers();
   editPolyPoints = [];
@@ -504,8 +640,9 @@ function clearEditMapAll() {
 function clearPolygonLayers() {
   if (editPolyLayer)   { editMap.removeLayer(editPolyLayer);   editPolyLayer   = null; }
   if (editPreviewLine) { editMap.removeLayer(editPreviewLine); editPreviewLine = null; }
-  editPolyDots.forEach(d => editMap.removeLayer(d));
+  editPolyDots.forEach(d => { try { editMap.removeLayer(d); } catch(e){} });
   editPolyDots = [];
+  clearEditVertexMarkers();
 }
 
 function resetEditMapState() {
@@ -514,15 +651,22 @@ function resetEditMapState() {
   editPolyPoints = [];
   editMapMode    = 'point';
 
-  document.getElementById('btnModePoint').className   = 'map-mode-btn active-point';
-  document.getElementById('btnModePolygon').className = 'map-mode-btn';
-  document.getElementById('btnFinishPoly').classList.remove('visible');
+  const btnPoint   = document.getElementById('btnModePoint');
+  const btnPoly    = document.getElementById('btnModePolygon');
+  const btnFin     = document.getElementById('btnFinishPoly');
+  const btnRestart = document.getElementById('btnRestartPoly');
+
+  if (btnPoint) btnPoint.className = 'map-mode-btn active-point';
+  if (btnPoly)  btnPoly.className  = 'map-mode-btn';
+  if (btnFin)   btnFin.classList.remove('visible');
+  if (btnRestart) btnRestart.style.display = 'none';
   setEditStatus('Klik peta untuk memindahkan titik koordinat', 'point');
 }
 
 // ─── TAMPILKAN PENANDAAN & ARSIRAN LAIN YANG SUDAH ADA DI PETA EDIT ───
 function renderEditMapReferences(currentRow) {
   if (!editMap) return;
+  ensureAdminHatchPattern();
 
   if (!editNeighborsLayer) editNeighborsLayer = L.featureGroup().addTo(editMap);
   if (!editPipesLayer)     editPipesLayer     = L.featureGroup().addTo(editMap);
@@ -582,9 +726,10 @@ function renderEditMapReferences(currentRow) {
 
       // B. Penanda Nomor Urut Pelanggan Tetangga
       if (!isNaN(rLat) && !isNaN(rLng)) {
+        const neighborHasRoof = (polyCoords.length >= 3);
         const neighborIcon = L.divIcon({
-          className: 'custom-pin-wrapper',
-          html: `<div class="marker-number-pin" style="width:22px;height:22px;font-size:10.5px;background:#ef4444 !important;color:#fff !important;border:2px solid #fff !important;border-radius:50% !important;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 2px 5px rgba(0,0,0,0.45);cursor:pointer;" title="#${r.no}. ${escHtml(r.nama)}">${r.no}</div>`,
+          className: 'custom-pin-wrapper ' + (neighborHasRoof ? 'pin-has-roof' : 'pin-no-roof'),
+          html: `<div class="marker-number-pin ${neighborHasRoof ? 'has-roof-pin' : 'no-roof-pin'}" style="width:22px;height:22px;font-size:10.5px;background:#ef4444 !important;color:#fff !important;border:2px solid #fff !important;border-radius:50% !important;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 2px 5px rgba(0,0,0,0.45);cursor:pointer;" title="#${r.no}. ${escHtml(r.nama)}">${r.no}</div>`,
           iconSize: [22, 22],
           iconAnchor: [11, 11]
         });
@@ -683,27 +828,40 @@ function loadCustomerOnEditMap(row) {
         fillColor: '#3b82f6', fillOpacity: 0.45
       }).addTo(editMap);
 
-      if (!isNaN(lat) && !isNaN(lng)) {
-        const icon = L.divIcon({
-          className: 'leaflet-div-icon',
-          html: '<div class="edit-pin" style="font-size:9px">CTR</div>',
-          iconSize: [30,22], iconAnchor: [15,11]
-        });
-        editMarker = L.marker([lat, lng], { icon }).addTo(editMap);
-      }
+      // Buat titik sudut interaktif yang bisa digeser (draggable)
+      renderEditPolygonVertices();
+
+      const pinLat = (!isNaN(lat) && !isNaN(lng)) ? lat : coords[0][0];
+      const pinLng = (!isNaN(lat) && !isNaN(lng)) ? lng : coords[0][1];
+
+      const icon = L.divIcon({
+        className: 'leaflet-div-icon',
+        html: '<div class="edit-pin" style="font-size:9px;cursor:grab;">CTR</div>',
+        iconSize: [30,22], iconAnchor: [15,11]
+      });
+      editMarker = L.marker([pinLat, pinLng], { icon, draggable: true }).addTo(editMap);
+
+      editMarker.on('dragend', e => {
+        const pos = e.target.getLatLng();
+        updateCoordInputs(pos.lat, pos.lng);
+        setEditStatus(`📍 Titik pusat dipindahkan: ${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`);
+      });
 
       try {
         const bounds = editPolyLayer.getBounds();
         if (bounds && bounds.isValid()) {
           editMap.fitBounds(bounds, { padding: [30,30] });
-        } else if (!isNaN(lat) && !isNaN(lng)) {
-          editMap.setView([lat, lng], 18);
+        } else {
+          editMap.setView([pinLat, pinLng], 18);
         }
       } catch (errBounds) {
-        if (!isNaN(lat) && !isNaN(lng)) editMap.setView([lat, lng], 18);
+        editMap.setView([pinLat, pinLng], 18);
       }
 
-      setEditStatus(`🏠 Poligon atap: ${coords.length} sudut`, 'polygon');
+      const btnRestart = document.getElementById('btnRestartPoly');
+      if (btnRestart) btnRestart.style.display = 'inline-flex';
+
+      setEditStatus(`🏠 Poligon atap: ${coords.length} sudut · seret sudut (1, 2...) atau titik untuk menyesuaikan`, 'polygon');
       return;
     }
   }
@@ -2200,7 +2358,7 @@ function displayAllFacilitiesOnMap(facilities) {
         fillColor: color,
         fillOpacity: 0.45,
         dashArray: fac.status === 'Rencana' ? '6, 4' : null,
-        smoothFactor: 1
+        smoothFactor: 0
       });
 
       const popupContent = `
@@ -2300,7 +2458,7 @@ function renderFacilityReferenceLayers() {
           weight: 2,
           fillColor: '#ef4444',
           fillOpacity: 0.5,
-          smoothFactor: 1
+          smoothFactor: 0
         });
         roofPoly.bindPopup(popupHtml);
         roofPoly.on('dblclick', function(e) {

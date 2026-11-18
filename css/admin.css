@@ -1065,6 +1065,13 @@ tbody td { padding: 10px 13px; color: #334155; vertical-align: middle; }
 
 .roof-hatched-polygon {
   cursor: pointer;
+  fill: url(#diagonalHatchAdmin) !important;
+  fill-opacity: 1 !important;
+}
+
+/* Mode Hanya Tampilkan Arsiran: sembunyikan nomor pin yang sudah memiliki arsiran atap */
+.only-roof-active .pin-has-roof {
+  display: none !important;
 }
 
 .facility-card-item {

@@ -24,6 +24,7 @@ function doPost(e) {
     var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'submit';
     if (action === 'login')           return handleLogin(e);
     if (action === 'update')          return handleUpdate(e);
+    if (action === 'batch_shift')     return handleBatchShift(e);
     if (action === 'delete')          return handleDelete(e);
     if (action === 'save_pipe')       return handleSavePipe(e);
     if (action === 'update_pipe')     return handleUpdatePipe(e);
@@ -187,6 +188,55 @@ function handleUpdate(e) {
   }
 
   return jsonResponse({ status: 'success', message: 'Data berhasil diperbarui' });
+}
+
+/* ================================================================
+   BATCH SHIFT PELANGGAN: Pergeseran koordinat massal / kelompok (Hanya Admin)
+   Menjaga kolom 11 (nama petugas survey) 100% utuh tanpa perubahan!
+================================================================ */
+function handleBatchShift(e) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getCustomerSheet(ss);
+  var role  = (e.parameter.role || '').toString().trim().toLowerCase();
+  if (role !== 'admin') {
+    return jsonResponse({ status: 'error', message: 'Akses Ditolak: Hanya Administrator yang berhak melakukan pergeseran massal.' });
+  }
+
+  var updatesJson = e.parameter.updates;
+  if (!updatesJson) {
+    return jsonResponse({ status: 'error', message: 'Parameter updates kosong.' });
+  }
+
+  try {
+    var updates = JSON.parse(updatesJson);
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return jsonResponse({ status: 'error', message: 'Daftar pembaruan kosong.' });
+    }
+
+    for (var i = 0; i < updates.length; i++) {
+      var u = updates[i];
+      var r = parseInt(u.rowIndex);
+      if (!isNaN(r) && r >= 2) {
+        if (u.latitude !== undefined && u.latitude !== null && u.latitude !== '') {
+          sheet.getRange(r, 2).setValue("'" + u.latitude);
+        }
+        if (u.longitude !== undefined && u.longitude !== null && u.longitude !== '') {
+          sheet.getRange(r, 3).setValue("'" + u.longitude);
+        }
+        if (u.polygon !== undefined && u.polygon !== null && u.polygon !== '') {
+          sheet.getRange(r, 10).setValue("'" + u.polygon);
+        }
+        // Kolom 11 (Petugas Survey / Sumber Data) SENGAJA TIDAK DISENTUH
+      }
+    }
+
+    return jsonResponse({
+      status: 'success',
+      message: updates.length + ' data pelanggan berhasil digeser dan disimpan ke Sheet.'
+    });
+  } catch (err) {
+    return jsonResponse({ status: 'error', message: 'Gagal memproses batch shift: ' + err.toString() });
+  }
 }
 
 /* ================================================================

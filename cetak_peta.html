@@ -10,8 +10,8 @@
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
   <!-- Konfigurasi Project & Auth Guard -->
-  <script src="js/config.js"></script>
-  <script src="js/auth.js"></script>
+  <script src="js/config.js?v=20261118_v17"></script>
+  <script src="js/auth.js?v=20261118_v17"></script>
 
   <!-- PWA & Mobile Web App Meta -->
   <link rel="manifest" href="manifest.json" />
@@ -330,6 +330,39 @@
       to { transform: translateY(0); opacity: 1; }
     }
 
+        /* Mode Geser Manual Kursor */
+    .shift-mode-active .roof-hatched-polygon,
+    .shift-mode-active .custom-pin-wrapper,
+    .shift-mode-active .marker-number-pin {
+      cursor: grab !important;
+    }
+    .shift-mode-active.is-dragging-shift .roof-hatched-polygon,
+    .shift-mode-active.is-dragging-shift .custom-pin-wrapper,
+    .shift-mode-active.is-dragging-shift .marker-number-pin {
+      cursor: grabbing !important;
+    }
+    .shift-selected-polygon {
+      stroke: #06b6d4 !important;
+      stroke-width: 3.5px !important;
+      filter: drop-shadow(0 0 6px #06b6d4);
+      animation: pulseGlow 1.5s infinite alternate;
+    }
+    .shift-selected-pin .marker-number-pin {
+      outline: 3px solid #06b6d4 !important;
+      box-shadow: 0 0 10px #06b6d4 !important;
+    }
+    @keyframes pulseGlow {
+      from { stroke-opacity: 0.8; }
+      to { stroke-opacity: 1; stroke-width: 4px; }
+    }
+    .shift-ghost-polygon {
+      stroke: #94a3b8 !important;
+      stroke-width: 1.5px !important;
+      stroke-dasharray: 4, 4 !important;
+      fill: rgba(148, 163, 184, 0.2) !important;
+      pointer-events: none !important;
+    }
+
     /* Pola Arsiran Diagonal SVG Poligon Atap */
     .roof-hatched-polygon {
       stroke: #dc2626 !important;
@@ -338,6 +371,31 @@
       fill-opacity: 0.9 !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+    }
+
+    /* Mode Hanya Tampilkan Arsiran:
+       Sembunyikan nomor pin HANYA pada bangunan yang sudah memiliki arsiran atap.
+       Titik/nomor yang BELUM memiliki arsiran (.pin-no-roof) tetap 100% ditampilkan. */
+    .only-roof-active .pin-has-roof {
+      display: none !important;
+    }
+
+    .mode-toggle-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-toggle-label:hover {
+      background: #f1f5f9;
+      color: #0f172a;
     }
 
     /* ============================================================
@@ -715,6 +773,9 @@
       <button type="button" class="btn btn-fit" onclick="zoomFitAllCustomerPoints()" title="Paskan peta mengapit semua koordinat pelanggan dan jalur pipa">
         <span>🎯</span> Paskan Titik &amp; Pipa
       </button>
+      <button type="button" id="btnToggleManualShift" class="btn" onclick="toggleManualShiftMode()" title="Mode geser posisi penanda & arsiran atap secara manual dengan kursor" style="display:none;background:#7c3aed;color:#ffffff;border:1px solid #6d28d9;box-shadow:0 2px 5px rgba(124,58,237,0.35);">
+        <span>🏠</span> Geser Arsiran
+      </button>
       <button type="button" class="btn btn-print" onclick="prepareAndPrintPdf()" title="Cetak atau simpan peta ke dokumen PDF">
         <span>🖨️</span> Cetak Peta (PDF)
       </button>
@@ -723,7 +784,73 @@
 
   <!-- ===================== KERTAS PETA TOPOGRAFI ===================== -->
   <div class="page-wrapper">
-    <div class="topografi-container">
+    <!-- Floating Panel Mode Geser Manual (Khusus Admin) -->
+      <div id="manualShiftPanel" class="no-print" style="display:none;position:absolute;top:55px;left:15px;z-index:2000;background:#ffffff;border-radius:12px;box-shadow:0 12px 35px rgba(0,0,0,0.35);width:350px;overflow:hidden;border:2px solid #7c3aed;animation:popIn 0.2s ease;">
+        <!-- Header Panel -->
+        <div style="background:linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px;">
+            <span>🏠</span> Mode Geser Arsiran Atap
+          </div>
+          <button type="button" onclick="exitManualShiftMode()" style="background:rgba(255,255,255,0.25);border:none;color:#fff;border-radius:50%;width:24px;height:24px;cursor:pointer;font-weight:bold;display:flex;align-items:center;justify-content:center;">✕</button>
+        </div>
+
+        <!-- Body Panel -->
+        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+          <!-- Switcher 2 Mode: Satu per Satu vs Massal -->
+          <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:8px 10px;font-size:11px;color:#166534;display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="chkOnlyShiftRoof" checked style="width:16px;height:16px;accent-color:#16a34a;cursor:pointer;" />
+            <label for="chkOnlyShiftRoof" style="cursor:pointer;font-weight:800;line-height:1.3;">
+              Geser Arsiran Atap Saja <br><span style="font-weight:normal;color:#15803d;font-size:10px;">(Titik Koordinat GPS Asli Tidak Berubah)</span>
+            </label>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#f1f5f9;padding:4px;border-radius:8px;">
+            <button type="button" id="btnShiftModeSingle" onclick="setShiftSubmode('single')" style="padding:6px;font-size:11.5px;font-weight:700;border:none;border-radius:6px;cursor:pointer;background:#7c3aed;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+              ☝️ Satu per Satu
+            </button>
+            <button type="button" id="btnShiftModeBulk" onclick="setShiftSubmode('bulk')" style="padding:6px;font-size:11.5px;font-weight:700;border:none;border-radius:6px;cursor:pointer;background:transparent;color:#475569;">
+              👥 Geser Massal
+            </button>
+          </div>
+
+          <!-- Petunjuk Mode -->
+          <div id="shiftInstructions" style="font-size:11.5px;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;line-height:1.45;">
+            👉 <strong>Mode Satu per Satu:</strong> Klik &amp; tahan pada <strong>bidang arsiran atap merah</strong>, lalu seret dengan kursor ke posisi atap bangunan yang pas.
+          </div>
+
+          <!-- Kontrol Seleksi Mode Massal -->
+          <div id="bulkControlsContainer" style="display:none;flex-direction:column;gap:6px;">
+            <div style="display:flex;gap:6px;">
+              <button type="button" onclick="selectVisibleInView()" style="flex:1;padding:6px 8px;font-size:11px;font-weight:700;background:#ede9fe;color:#6d28d9;border:1px solid #ddd6fe;border-radius:6px;cursor:pointer;">
+                👁️ Pilih di Layar Ini
+              </button>
+              <button type="button" onclick="clearBulkSelection()" style="padding:6px 10px;font-size:11px;font-weight:600;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;cursor:pointer;">
+                ✕ Batal Pilih
+              </button>
+            </div>
+            <div style="font-size:11px;color:#64748b;display:flex;align-items:center;justify-content:space-between;padding:2px 2px;">
+              <span>Terpilih: <strong id="bulkSelectedCount" style="color:#7c3aed;font-size:12px;">0 Bangunan</strong></span>
+              <span style="font-size:10px;color:#94a3b8;">Klik bangunan di peta untuk pilih</span>
+            </div>
+          </div>
+
+          <!-- Status Pergeseran Aktif -->
+          <div id="shiftDeltaStatus" style="display:none;background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:6px;padding:8px 10px;font-size:11px;color:#065f46;">
+            <div style="font-weight:800;margin-bottom:2px;" id="shiftDeltaTitle">Pergeseran Terdeteksi</div>
+            <div id="shiftDeltaDetails" style="font-family:monospace;font-size:10.5px;color:#047857;">-</div>
+          </div>
+
+          <!-- Tombol Aksi Simpan / Batalkan -->
+          <div style="display:flex;gap:6px;margin-top:2px;">
+            <button type="button" id="btnCancelShift" onclick="cancelPendingShift()" disabled style="flex:1;padding:7px;font-size:11.5px;font-weight:700;border:1px solid #cbd5e1;border-radius:6px;background:#f1f5f9;color:#94a3b8;cursor:not-allowed;">
+              ↩️ Batalkan
+            </button>
+            <button type="button" id="btnSaveShift" onclick="savePendingShift()" disabled style="flex:1.4;padding:7px;font-size:11.5px;font-weight:700;border:1px solid #cbd5e1;border-radius:6px;background:#e2e8f0;color:#94a3b8;cursor:not-allowed;">
+              💾 Simpan Posisi
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="topografi-container">
 
       <!-- KOLOM PETA (KIRI) -->
       <div class="map-column">
@@ -733,6 +860,13 @@
           <button type="button" class="mode-btn" id="btnModeRoad" onclick="switchMapLayer('roadmap')">🏢 Jalan &amp; Bangunan</button>
           <button type="button" class="mode-btn" id="btnModeTopo" onclick="switchMapLayer('terrain')">⛰️ Kontur (Topografi)</button>
           <button type="button" class="mode-btn" id="btnModeCad" onclick="switchMapLayer('autocad')">📐 AutoCAD (Garis)</button>
+          
+          <div style="width:1px;height:18px;background:#cbd5e1;margin:0 4px;align-self:center;"></div>
+          
+          <label class="mode-toggle-label" title="Jika dicentang: nomor pin disembunyikan untuk bangunan yang sudah berarsiran atap. Titik/nomor yang belum memiliki arsiran tetap ditampilkan.">
+            <input type="checkbox" id="chkOnlyShowRoof" onchange="toggleOnlyRoofView(this.checked)" style="width:15px;height:15px;accent-color:#dc2626;cursor:pointer;" />
+            <span>🏠 Hanya Tampilkan Arsiran</span>
+          </label>
         </div>
 
         <!-- Wadah Leaflet Map -->
@@ -997,6 +1131,27 @@
     }
 
     /* ------------------------------------------------------------
+       Toggle Mode Tampilan: Hanya Tampilkan Arsiran Atap Saja
+       - Bangunan yang SUDAH memiliki arsiran atap: pin nomor urut disembunyikan.
+       - Titik pelanggan yang BELUM memiliki arsiran atap: pin nomor urut TETAP ditampilkan.
+    ------------------------------------------------------------ */
+    function toggleOnlyRoofView(checked) {
+      const mapEl = document.getElementById('printMap');
+      const containerEl = document.querySelector('.topografi-container') || document.body;
+      if (checked) {
+        if (mapEl) mapEl.classList.add('only-roof-active');
+        if (containerEl) containerEl.classList.add('only-roof-active');
+        document.body.classList.add('only-roof-active');
+        try { localStorage.setItem('amerta_pref_only_roof', 'true'); } catch (e) {}
+      } else {
+        if (mapEl) mapEl.classList.remove('only-roof-active');
+        if (containerEl) containerEl.classList.remove('only-roof-active');
+        document.body.classList.remove('only-roof-active');
+        try { localStorage.removeItem('amerta_pref_only_roof'); } catch (e) {}
+      }
+    }
+
+    /* ------------------------------------------------------------
        Normalisasi & Sanitasi Koordinat GPS
     ------------------------------------------------------------ */
     function sanitizeCoordinate(val, type) {
@@ -1122,6 +1277,9 @@
         const authSession = (typeof getAuthSession === 'function') ? getAuthSession() : null;
         const isAdmin = authSession && authSession.role === 'admin';
 
+        let roofPolygon = null;
+        let marker = null;
+
         // Konten popup informasi pelanggan
         const popupContent = `
           <div style="font-size: 12px; line-height: 1.45; min-width: 195px;">
@@ -1148,18 +1306,19 @@
 
         // 1. Gambar Arsiran Bidang Atap Bangunan jika ada poligon (minimal 3 sudut)
         if (polygonCoords.length >= 3) {
-          const roofPolygon = L.polygon(polygonCoords, {
+          roofPolygon = L.polygon(polygonCoords, {
             className: 'roof-hatched-polygon',
             color: '#dc2626',
             weight: 2,
             fillColor: '#ef4444',
             fillOpacity: 0.5,
-            smoothFactor: 1
+            smoothFactor: 0
           });
 
           roofPolygon.bindPopup(popupContent);
           if (isAdmin) {
             roofPolygon.on('dblclick', function(e) {
+              if (isManualShiftMode) return;
               L.DomEvent.stopPropagation(e);
               openAdminEditModalFromPrint(index);
             });
@@ -1184,15 +1343,16 @@
             validPoints.push([lat, lng]);
           }
 
+          const hasRoof = (polygonCoords.length >= 3);
           const customIcon = L.divIcon({
-            className: 'custom-pin-wrapper',
-            html: `<div class="marker-number-pin">${noUrut}</div>`,
+            className: 'custom-pin-wrapper ' + (hasRoof ? 'pin-has-roof' : 'pin-no-roof'),
+            html: `<div class="marker-number-pin ${hasRoof ? 'has-roof-pin' : 'no-roof-pin'}">${noUrut}</div>`,
             iconSize: [22, 22],
             iconAnchor: [11, 11],
             popupAnchor: [0, -11]
           });
 
-          const marker = L.marker([lat, lng], {
+          marker = L.marker([lat, lng], {
             icon: customIcon,
             zIndexOffset: 1000 // Tampil di atas poligon atap
           });
@@ -1200,11 +1360,30 @@
           marker.bindPopup(popupContent);
           if (isAdmin) {
             marker.on('dblclick', function(e) {
+              if (isManualShiftMode) return;
               L.DomEvent.stopPropagation(e);
               openAdminEditModalFromPrint(index);
             });
           }
           markersLayer.addLayer(marker);
+
+        }
+
+        // Daftarkan ke sistem geser arsiran (hanya jika memiliki arsiran atap >= 3 sudut)
+        if (roofPolygon && polygonCoords.length >= 3) {
+          registerCustomerShiftItem({
+            index: index,
+            noUrut: noUrut,
+            row: row,
+            marker: marker,
+            roofPolygon: roofPolygon,
+            origLat: lat,
+            origLng: lng,
+            origPolyCoords: polygonCoords.map(p => [p[0], p[1]]),
+            currentLat: lat,
+            currentLng: lng,
+            currentPolyCoords: polygonCoords.map(p => [p[0], p[1]])
+          });
         }
       });
 
@@ -1213,6 +1392,12 @@
       const elCakupan = document.getElementById('legendCakupan');
       if (elTotal) elTotal.innerText = `${data.length} Pelanggan`;
       if (elCakupan) elCakupan.innerText = validPoints.length > 0 ? "Semua Titik Terpetakan" : "Menunggu Data";
+
+      // Pastikan status filter arsiran tetap sinkron dengan kotak centang
+      const chkRoof = document.getElementById('chkOnlyShowRoof');
+      if (chkRoof) {
+        toggleOnlyRoofView(chkRoof.checked);
+      }
 
       // Otomatis paskan peta mengapit SEMUA titik & bidang poligon pelanggan
       zoomFitAllCustomerPoints();
@@ -1544,6 +1729,7 @@
 
           allData = rows;
           updateMapMarkers(allData);
+          if (typeof checkAdminForShift === 'function') checkAdminForShift();
 
           const totalPipesText = pipesLayer && pipesLayer.getLayers().length > 0 ? ` & Rute Pipa Aktif` : '';
           syncStatus.innerText = `Tersambung (${allData.length} pelanggan${totalPipesText})`;
@@ -1654,7 +1840,7 @@
                   opacity: 0.95,
                   lineCap: 'round',
                   lineJoin: 'round',
-                  smoothFactor: 1
+                  smoothFactor: 0
                 });
 
                 polyline.bindPopup(`
@@ -1749,7 +1935,7 @@
                   fillColor: color,
                   fillOpacity: 0.45,
                   dashArray: fac.status === 'Rencana' ? '6, 4' : null,
-                  smoothFactor: 1
+                  smoothFactor: 0
                 });
 
                 polygon.bindPopup(`
@@ -1827,8 +2013,7 @@
         const color = fac.warna || '#16a34a';
         const nama = escapeHtml(fac.nama || 'Bangunan Pengolahan');
         const kat = escapeHtml(fac.kategori || 'IPA');
-        const luas = fac.luas_m2 ? `Luas ${escapeHtml(fac.luas_m2)}` : '';
-        const sub = [kat, luas].filter(Boolean).join(' • ');
+        const sub = kat;
 
         html += `
           <div class="legend-item" style="margin-bottom: 5px;">
@@ -2652,6 +2837,487 @@
         btnSave.innerHTML = '<span>💾</span> Simpan Perubahan';
       }
     }
+
+    /* ============================================================
+       SISTEM PENGGESERAN MANUAL KURSOR (SATU PER SATU & MASSAL)
+       Khusus Administrator untuk mengoreksi arsiran yang bergeser
+    ============================================================ */
+    let customerShiftItems = [];
+    let isManualShiftMode = false;
+    let shiftSubmode = 'single'; // 'single' | 'bulk'
+    let selectedBulkIndices = new Set();
+    let isDraggingShift = false;
+    let dragShiftStartLatLng = null;
+    let activeShiftItems = [];
+    let pendingShiftedItemsMap = new Map();
+
+    function registerCustomerShiftItem(item) {
+      customerShiftItems[item.index] = item;
+      bindShiftEventsToLayer(item);
+    }
+
+    function bindShiftEventsToLayer(item) {
+      if (!item.roofPolygon) return;
+
+      const polyEl = item.roofPolygon;
+
+      // Event saat kursor mouse ditekan (mousedown) pada bidang arsiran
+      polyEl.on('mousedown', function(e) {
+        if (!isManualShiftMode) return;
+
+        // Tutup popup
+        polyEl.closePopup();
+
+        const origEvt = e.originalEvent || e;
+        if (origEvt) {
+          if (origEvt.stopPropagation) origEvt.stopPropagation();
+          if (origEvt.preventDefault) origEvt.preventDefault();
+        }
+
+        if (shiftSubmode === 'single') {
+          activeShiftItems = [item];
+          startShiftDragging(e.latlng);
+        } else {
+          // Bulk Mode: jika belum terpilih, pilih arsiran ini
+          if (!selectedBulkIndices.has(item.index)) {
+            toggleSelectBulkItem(item.index);
+          }
+          activeShiftItems = Array.from(selectedBulkIndices).map(idx => customerShiftItems[idx]).filter(Boolean);
+          startShiftDragging(e.latlng);
+        }
+      });
+
+      // Event klik: jika dalam mode geser, cegah popup membuka
+      polyEl.on('click', function(e) {
+        if (isManualShiftMode) {
+          const origEvt = e.originalEvent || e;
+          if (origEvt && origEvt.stopPropagation) origEvt.stopPropagation();
+          polyEl.closePopup();
+          if (shiftSubmode === 'bulk') {
+            toggleSelectBulkItem(item.index);
+          }
+        }
+      });
+    }
+
+    function toggleManualShiftMode() {
+      const authSession = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+      if (!authSession || authSession.role !== 'admin') {
+        alert("Akses Terbatas: Fitur geser arsiran hanya dapat digunakan oleh Administrator.");
+        return;
+      }
+
+      if (!isManualShiftMode) {
+        enterManualShiftMode();
+      } else {
+        exitManualShiftMode();
+      }
+    }
+
+    function enterManualShiftMode() {
+      isManualShiftMode = true;
+      document.getElementById('manualShiftPanel').style.display = 'block';
+      document.getElementById('printMap').classList.add('shift-mode-active');
+      const btnToggle = document.getElementById('btnToggleManualShift');
+      if (btnToggle) {
+        btnToggle.style.background = '#dc2626';
+        btnToggle.innerHTML = '<span>✕</span> Keluar Geser';
+      }
+      if (printMap) {
+        printMap.closePopup();
+      }
+
+      // Pastikan global mouse listeners terpasang pada window
+      if (!window._printMapShiftEventsAttached) {
+        printMap.on('mousemove', onMapMouseMoveShift);
+        window.addEventListener('mousemove', onMapMouseMoveShift);
+        printMap.on('mouseup', onMapMouseUpShift);
+        window.addEventListener('mouseup', onMapMouseUpShift);
+        window._printMapShiftEventsAttached = true;
+      }
+
+      setShiftSubmode('single');
+    }
+
+    function exitManualShiftMode() {
+      if (pendingShiftedItemsMap.size > 0) {
+        if (!confirm('Terdapat pergeseran arsiran yang belum disimpan. Batalkan dan keluar dari mode geser?')) return;
+        cancelPendingShift();
+      }
+
+      isManualShiftMode = false;
+      document.getElementById('manualShiftPanel').style.display = 'none';
+      document.getElementById('printMap').classList.remove('shift-mode-active');
+      const btnToggle = document.getElementById('btnToggleManualShift');
+      if (btnToggle) {
+        btnToggle.style.background = '#7c3aed';
+        btnToggle.innerHTML = '<span>🏠</span> Geser Arsiran';
+      }
+      clearBulkSelection();
+    }
+
+    function setShiftSubmode(mode) {
+      shiftSubmode = mode;
+      const bSingle = document.getElementById('btnShiftModeSingle');
+      const bBulk   = document.getElementById('btnShiftModeBulk');
+      const cBulk   = document.getElementById('bulkControlsContainer');
+      const inst    = document.getElementById('shiftInstructions');
+
+      if (bSingle) {
+        bSingle.style.background = mode === 'single' ? '#7c3aed' : 'transparent';
+        bSingle.style.color      = mode === 'single' ? '#fff' : '#475569';
+        bSingle.style.boxShadow  = mode === 'single' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none';
+      }
+      if (bBulk) {
+        bBulk.style.background = mode === 'bulk' ? '#7c3aed' : 'transparent';
+        bBulk.style.color      = mode === 'bulk' ? '#fff' : '#475569';
+        bBulk.style.boxShadow  = mode === 'bulk' ? '0 1px 3px rgba(0,0,0,0.2)' : 'none';
+      }
+
+      if (mode === 'single') {
+        if (cBulk) cBulk.style.display = 'none';
+        if (inst) inst.innerHTML = '👉 <strong>Mode Satu per Satu:</strong> Klik &amp; tahan pada <strong>bidang arsiran atap merah</strong>, lalu seret dengan kursor ke posisi atap bangunan yang pas.';
+        clearBulkSelection();
+      } else {
+        if (cBulk) cBulk.style.display = 'flex';
+        if (inst) inst.innerHTML = '👉 <strong>Mode Geser Massal:</strong> Klik tombol "Pilih di Layar" (atau klik bidang arsiran di peta), lalu seret salah satunya untuk menggeser semuanya serempak.';
+      }
+    }
+
+    function toggleSelectBulkItem(index) {
+      const item = customerShiftItems[index];
+      if (!item || !item.roofPolygon || !item.origPolyCoords || item.origPolyCoords.length < 3) return;
+
+      if (selectedBulkIndices.has(index)) {
+        selectedBulkIndices.delete(index);
+        unhighlightItem(item);
+      } else {
+        selectedBulkIndices.add(index);
+        highlightItem(item);
+      }
+      updateBulkSelectedCountUI();
+    }
+
+    function highlightItem(item) {
+      if (item.roofPolygon && item.roofPolygon._path) {
+        item.roofPolygon._path.classList.add('shift-selected-polygon');
+      }
+    }
+
+    function unhighlightItem(item) {
+      if (item.roofPolygon && item.roofPolygon._path) {
+        item.roofPolygon._path.classList.remove('shift-selected-polygon');
+      }
+    }
+
+    function selectVisibleInView() {
+      if (!printMap) return;
+      const bounds = printMap.getBounds();
+      let count = 0;
+
+      customerShiftItems.forEach(item => {
+        if (!item || !item.roofPolygon || !item.origPolyCoords || item.origPolyCoords.length < 3) return;
+        const lat = item.origLat;
+        const lng = item.origLng;
+        if (!isNaN(lat) && !isNaN(lng) && bounds.contains([lat, lng])) {
+          selectedBulkIndices.add(item.index);
+          highlightItem(item);
+          count++;
+        }
+      });
+      updateBulkSelectedCountUI();
+    }
+
+    function clearBulkSelection() {
+      selectedBulkIndices.forEach(idx => {
+        const item = customerShiftItems[idx];
+        if (item) unhighlightItem(item);
+      });
+      selectedBulkIndices.clear();
+      updateBulkSelectedCountUI();
+    }
+
+    function updateBulkSelectedCountUI() {
+      const el = document.getElementById('bulkSelectedCount');
+      if (el) el.textContent = `${selectedBulkIndices.size} Arsiran Atap`;
+    }
+
+    /* ------------------------------------------------------------
+       Alur Drag & Drop Serentak dengan Mouse untuk Arsiran Atap
+    ------------------------------------------------------------ */
+    function startShiftDragging(startLatLng) {
+      if (activeShiftItems.length === 0) return;
+      isDraggingShift = true;
+      dragShiftStartLatLng = startLatLng;
+      document.getElementById('printMap').classList.add('is-dragging-shift');
+      if (printMap) printMap.dragging.disable();
+
+      activeShiftItems.forEach(it => {
+        if (it.roofPolygon && typeof it.roofPolygon.getLatLngs === 'function') {
+          const rawPts = it.roofPolygon.getLatLngs();
+          const pts = Array.isArray(rawPts[0]) ? rawPts[0] : rawPts;
+          it._dragStartPoly = pts.map(p => L.latLng(p.lat, p.lng));
+
+          // Buat bayangan posisi awal (ghost footprint) garis putus-putus
+          if (!it.ghostPolygon) {
+            it.ghostPolygon = L.polygon(it._dragStartPoly, {
+              className: 'shift-ghost-polygon',
+              interactive: false
+            }).addTo(markersLayer);
+          }
+        }
+      });
+    }
+
+    function onMapMouseMoveShift(e) {
+      if (!isDraggingShift || !dragShiftStartLatLng || !printMap) return;
+
+      let curLatLng = e.latlng;
+      if (!curLatLng && e.clientX && typeof printMap.mouseEventToLatLng === 'function') {
+        try { curLatLng = printMap.mouseEventToLatLng(e); } catch(err){}
+      }
+      if (!curLatLng) return;
+
+      const dLat = curLatLng.lat - dragShiftStartLatLng.lat;
+      const dLng = curLatLng.lng - dragShiftStartLatLng.lng;
+
+      activeShiftItems.forEach(it => {
+        if (it.roofPolygon && it._dragStartPoly) {
+          const newPts = it._dragStartPoly.map(p => [ p.lat + dLat, p.lng + dLng ]);
+          it.roofPolygon.setLatLngs(newPts);
+        }
+      });
+
+      const dist = calculateDistanceMeters(dragShiftStartLatLng.lat, dragShiftStartLatLng.lng, curLatLng.lat, curLatLng.lng);
+      renderShiftDeltaUI(activeShiftItems.length, dist, dLat, dLng, false);
+    }
+
+    function onMapMouseUpShift(e) {
+      if (!isDraggingShift) return;
+      isDraggingShift = false;
+      document.getElementById('printMap').classList.remove('is-dragging-shift');
+      if (printMap) printMap.dragging.enable();
+
+      if (!dragShiftStartLatLng) return;
+
+      let curLatLng = e.latlng;
+      if (!curLatLng && e.clientX && printMap && typeof printMap.mouseEventToLatLng === 'function') {
+        try { curLatLng = printMap.mouseEventToLatLng(e); } catch(err){}
+      }
+      if (!curLatLng) curLatLng = dragShiftStartLatLng;
+
+      const dLat = curLatLng.lat - dragShiftStartLatLng.lat;
+      const dLng = curLatLng.lng - dragShiftStartLatLng.lng;
+      const dist = calculateDistanceMeters(dragShiftStartLatLng.lat, dragShiftStartLatLng.lng, curLatLng.lat, curLatLng.lng);
+
+      if (dist >= 0.2) {
+        activeShiftItems.forEach(it => {
+          if (it._dragStartPoly) {
+            it.currentPolyCoords = it._dragStartPoly.map(p => [ p.lat + dLat, p.lng + dLng ]);
+          }
+          pendingShiftedItemsMap.set(it.index, it);
+        });
+
+        renderShiftDeltaUI(activeShiftItems.length, dist, dLat, dLng, true);
+        enableSaveCancelButtons();
+      }
+    }
+
+    function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function renderShiftDeltaUI(count, dist, dLat, dLng, isFinal) {
+      const pnl   = document.getElementById('shiftDeltaStatus');
+      const title = document.getElementById('shiftDeltaTitle');
+      const det   = document.getElementById('shiftDeltaDetails');
+      if (!pnl) return;
+
+      pnl.style.display = 'block';
+      const arah = (dLat < 0 ? 'Selatan' : 'Utara') + '-' + (dLng < 0 ? 'Barat' : 'Timur');
+      title.textContent = `${count} Arsiran Atap Digeser ${dist.toFixed(1)} meter (${arah})`;
+      det.textContent = `ΔLat: ${dLat > 0 ? '+' : ''}${dLat.toFixed(7)} | ΔLng: ${dLng > 0 ? '+' : ''}${dLng.toFixed(7)}`;
+    }
+
+    function enableSaveCancelButtons() {
+      const bSave = document.getElementById('btnSaveShift');
+      const bCancel = document.getElementById('btnCancelShift');
+      if (bSave) {
+        bSave.disabled = false;
+        bSave.style.background = '#22c55e';
+        bSave.style.color = '#fff';
+        bSave.style.cursor = 'pointer';
+        bSave.style.borderColor = '#16a34a';
+      }
+      if (bCancel) {
+        bCancel.disabled = false;
+        bCancel.style.background = '#fee2e2';
+        bCancel.style.color = '#dc2626';
+        bCancel.style.cursor = 'pointer';
+        bCancel.style.borderColor = '#fca5a5';
+      }
+    }
+
+    function disableSaveCancelButtons() {
+      const bSave = document.getElementById('btnSaveShift');
+      const bCancel = document.getElementById('btnCancelShift');
+      if (bSave) {
+        bSave.disabled = true;
+        bSave.style.background = '#e2e8f0';
+        bSave.style.color = '#94a3b8';
+        bSave.style.cursor = 'not-allowed';
+        bSave.style.borderColor = '#cbd5e1';
+      }
+      if (bCancel) {
+        bCancel.disabled = true;
+        bCancel.style.background = '#f1f5f9';
+        bCancel.style.color = '#94a3b8';
+        bCancel.style.cursor = 'not-allowed';
+        bCancel.style.borderColor = '#cbd5e1';
+      }
+      const pnl = document.getElementById('shiftDeltaStatus');
+      if (pnl) pnl.style.display = 'none';
+    }
+
+    function cancelPendingShift() {
+      pendingShiftedItemsMap.forEach(it => {
+        // Kembalikan arsiran atap ke koordinat aslinya
+        it.currentPolyCoords = it.origPolyCoords.map(p => [...p]);
+        if (it.roofPolygon && it.origPolyCoords.length >= 3) {
+          it.roofPolygon.setLatLngs(it.origPolyCoords);
+        }
+        if (it.ghostPolygon) {
+          markersLayer.removeLayer(it.ghostPolygon);
+          it.ghostPolygon = null;
+        }
+      });
+
+      pendingShiftedItemsMap.clear();
+      disableSaveCancelButtons();
+    }
+
+    async function savePendingShift() {
+      if (pendingShiftedItemsMap.size === 0) return;
+
+      const itemsToSave = Array.from(pendingShiftedItemsMap.values());
+      const bSave = document.getElementById('btnSaveShift');
+      bSave.disabled = true;
+      bSave.innerHTML = '<span>⏳</span> Menyimpan...';
+
+      // Siapkan payload pembaruan: HANYA MEMPERBARUI POLIGON (KOLOM 10)!
+      const updates = itemsToSave.map(it => {
+        const polyStr = (it.currentPolyCoords && it.currentPolyCoords.length >= 3) ?
+          it.currentPolyCoords.map(p => `${p[0].toFixed(7)},${p[1].toFixed(7)}`).join(';') : '';
+        return {
+          rowIndex: it.row.rowIndex || (it.index + 2),
+          latitude: it.row.latitude, // Tetap utuh (tidak diubah)
+          longitude: it.row.longitude, // Tetap utuh (tidak diubah)
+          polygon: polyStr,
+          sumber_data: it.row.sumber || it.row.petugas || 'Surveyor' // Tetap utuh!
+        };
+      });
+
+      try {
+        let success = false;
+        try {
+          const body = new URLSearchParams({
+            action: 'batch_shift',
+            role: 'admin',
+            updates: JSON.stringify(updates)
+          });
+          const res = await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
+          const json = await res.json();
+          if (json.status === 'success') {
+            success = true;
+          }
+        } catch (eBatch) {
+          console.warn("Batch shift endpoint belum tersedia di Apps Script, melakukan fallback per baris...", eBatch);
+        }
+
+        // Fallback per baris jika batch_shift belum dideploy di Apps Script
+        if (!success) {
+          for (let u of updates) {
+            const body = new URLSearchParams({
+              action: 'update',
+              role: 'admin',
+              petugas_nama: 'Admin',
+              rowIndex: u.rowIndex,
+              latitude: u.latitude,
+              longitude: u.longitude,
+              polygon_coords: u.polygon,
+              sumber_data: u.sumber_data
+            });
+            await fetch(CONFIG.SCRIPT_URL, { method: 'POST', body });
+          }
+          success = true;
+        }
+
+        if (success) {
+          alert(`✅ Berhasil menyimpan pergeseran untuk ${updates.length} arsiran atap!\n(Titik koordinat GPS & nama petugas survey asli tetap terjaga utuh)`);
+
+          // Update data lokal allData
+          itemsToSave.forEach(it => {
+            it.origPolyCoords = it.currentPolyCoords.map(p => [...p]);
+            const row = allData[it.index];
+            if (row) {
+              row.polygon = (it.currentPolyCoords && it.currentPolyCoords.length >= 3) ?
+                it.currentPolyCoords.map(p => `${p[0].toFixed(7)},${p[1].toFixed(7)}`).join(';') : '';
+            }
+            if (it.ghostPolygon) {
+              markersLayer.removeLayer(it.ghostPolygon);
+              it.ghostPolygon = null;
+            }
+          });
+
+          pendingShiftedItemsMap.clear();
+          disableSaveCancelButtons();
+        } else {
+          alert('❌ Gagal menyimpan pergeseran posisi arsiran.');
+        }
+      } catch (err) {
+        alert('❌ Terjadi kesalahan jaringan saat menyimpan: ' + err.message);
+      } finally {
+        bSave.disabled = false;
+        bSave.innerHTML = '<span>💾</span> Simpan Posisi Arsiran';
+      }
+    }
+
+        // Aktifkan tombol Geser Manual jika yang login adalah Admin
+    function checkAdminForShift() {
+      const session = (typeof getAuthSession === 'function') ? getAuthSession() : null;
+      const isAdmin = (session && session.role === 'admin') || 
+                      sessionStorage.getItem('amerta_admin_session') === 'true' || 
+                      (localStorage.getItem('amerta_auth_session') || '').includes('"admin"') ||
+                      (sessionStorage.getItem('amerta_auth_session') || '').includes('"admin"');
+      const btn = document.getElementById('btnToggleManualShift');
+      if (btn && isAdmin) {
+        btn.style.display = 'inline-flex';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      // Pulihkan preferensi filter "Hanya Tampilkan Arsiran" jika pernah dicentang
+      try {
+        const isPrefOnlyRoof = localStorage.getItem('amerta_pref_only_roof') === 'true';
+        const chkRoof = document.getElementById('chkOnlyShowRoof');
+        if (chkRoof) {
+          chkRoof.checked = isPrefOnlyRoof;
+          toggleOnlyRoofView(isPrefOnlyRoof);
+        }
+      } catch (e) {}
+
+      checkAdminForShift();
+      setTimeout(checkAdminForShift, 300);
+      setTimeout(checkAdminForShift, 1000);
+    });
   </script>
 </body>
+</html>
 </html>
